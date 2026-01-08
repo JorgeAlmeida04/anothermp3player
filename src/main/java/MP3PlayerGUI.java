@@ -1,6 +1,11 @@
+import domain.Song;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.concurrent.ExecutionException;
@@ -9,6 +14,14 @@ public class MP3PlayerGUI extends JFrame {
     //Color Configuration
     public static final Color FRAME_COLOR = Color.BLACK;
     public static final Color TEXT_COLOR = Color.WHITE;
+
+    private MusicPlayer musicPlayer;
+
+    //Allow us to use file explorer
+    private JFileChooser jFileChooser;
+
+    private JLabel songTitle, songArtist, songImage;
+    private JPanel playbackButtons;
 
     public MP3PlayerGUI() throws Exception{
         //This will call the JFrame constructor to configure the header title to "Another MP3 Player"
@@ -32,6 +45,15 @@ public class MP3PlayerGUI extends JFrame {
         //Change the frame color
         getContentPane().setBackground(FRAME_COLOR);
 
+        musicPlayer = new MusicPlayer();
+        jFileChooser = new JFileChooser();
+
+        //Set a default path for file explorer
+        jFileChooser.setCurrentDirectory(new File("src/main/java/assets"));
+
+        //Filter file picker to only show .mp3 files
+        jFileChooser.setFileFilter(new FileNameExtensionFilter("MP3", "mp3"));
+
         addGuiComponents();
     }
 
@@ -39,12 +61,12 @@ public class MP3PlayerGUI extends JFrame {
         addToolbar();
 
         //Load record image
-        JLabel songImage = new JLabel(loadImage("src/main/java/assets/record.png"));
+        songImage = new JLabel(loadImage("src/main/java/assets/record.png"));
         songImage.setBounds(0, 50, getWidth() - 20, 225);
         add(songImage);
 
         //Song title
-        JLabel songTitle = new JLabel("Song Title");
+        songTitle = new JLabel("Song Title");
         songTitle.setBounds(0, 285, getWidth()-10, 30);
         songTitle.setFont(new Font("Dialog", Font.BOLD, 24));
         songTitle.setForeground(TEXT_COLOR);
@@ -52,7 +74,7 @@ public class MP3PlayerGUI extends JFrame {
         add(songTitle);
 
         //Song Artist
-        JLabel songArtist = new JLabel("Artist");
+        songArtist = new JLabel("Artist");
         songArtist.setBounds(0, 315, getWidth()-10, 30);
         songArtist.setFont(new Font("Dialog", Font.PLAIN, 24));
         songArtist.setForeground(TEXT_COLOR);
@@ -70,7 +92,7 @@ public class MP3PlayerGUI extends JFrame {
 
     }
 
-    private void addToolbar(){
+    private void addToolbar() throws Exception{
         JToolBar toolbar = new JToolBar();
         toolbar.setBounds(0, 0, getWidth(), 20);
 
@@ -87,6 +109,35 @@ public class MP3PlayerGUI extends JFrame {
 
         //Add the "load song" item in the song menu
         JMenuItem loadSong = new JMenuItem("Load Song");
+        loadSong.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    //The integer will let us know the user's selected option
+                    int result = jFileChooser.showOpenDialog(MP3PlayerGUI.this);
+                    File selectedFile = jFileChooser.getSelectedFile();
+
+                    //Checks if the selectedFile is not empty and if the user choose the "open" button
+                    if(selectedFile != null && result == JFileChooser.APPROVE_OPTION){
+
+                        //Create a song obj based on selected file
+                        Song song = new Song(selectedFile.getPath());
+
+                        //Load song in music player
+
+                        musicPlayer.loadSong(song);
+
+                        //Update Song Title and Artist
+                        updateTitleAndArtist(song);
+
+                        //Toggle on pause button and toggle off play button
+                        enablePause();
+                    }
+                }catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        });
         songMenu.add(loadSong);
 
         //Add Playlist menu
@@ -104,7 +155,7 @@ public class MP3PlayerGUI extends JFrame {
     }
 
     private void addPlaybackButtons() throws Exception{
-        JPanel playbackButtons = new JPanel();
+        playbackButtons = new JPanel();
         playbackButtons.setBounds(0, 435, getWidth()-10, 80);
         playbackButtons.setBackground(null);
 
@@ -118,6 +169,20 @@ public class MP3PlayerGUI extends JFrame {
         JButton playButton = new JButton((loadImage("src/main/java/assets/play.png")));
         playButton.setBorderPainted(false);
         playButton.setBackground(null);
+        playButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    //Toggle off play button and toggle on pause button
+                    enablePause();
+
+                    //Play or resume the song
+                    musicPlayer.playCurrentSong();
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        });
         playbackButtons.add(playButton);
 
         //Pause Button
@@ -125,6 +190,16 @@ public class MP3PlayerGUI extends JFrame {
         pauseButton.setBorderPainted(false);
         pauseButton.setBackground(null);
         pauseButton.setVisible(false);
+        pauseButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //Toggle off pause button and toggle on play button
+                enablePlay();
+
+                //Pause song
+                musicPlayer.pauseSong();
+            }
+        });
         playbackButtons.add(pauseButton);
 
         //Next Button
@@ -134,6 +209,41 @@ public class MP3PlayerGUI extends JFrame {
         playbackButtons.add(nextButton);
 
         add(playbackButtons);
+    }
+
+    private void updateTitleAndArtist(Song song){
+        songTitle.setText(song.getSongTitle());
+        songArtist.setText(song.getSongArtist());
+    }
+
+    private void enablePause(){
+        //Retrieve reference to play and pause buttons from playbackButtons panel
+        JButton playBtn = (JButton) playbackButtons.getComponent(1);
+        JButton pauseBtn = (JButton) playbackButtons.getComponent(2);
+
+        //Turn off play button
+        playBtn.setVisible(false);
+        playBtn.setEnabled(false);
+
+        //Turn on pause button
+        pauseBtn.setVisible(true);
+        pauseBtn.setEnabled(true);
+
+    }
+
+    private void enablePlay(){
+        //Retrieve reference to play and pause buttons from playbackButtons panel
+        JButton playBtn = (JButton) playbackButtons.getComponent(1);
+        JButton pauseBtn = (JButton) playbackButtons.getComponent(2);
+
+        //Turn on play button
+        playBtn.setVisible(true);
+        playBtn.setEnabled(true);
+
+        //Turn off pause button
+        pauseBtn.setVisible(false);
+        pauseBtn.setEnabled(false);
+
     }
 
     private ImageIcon loadImage(String imagePath) throws Exception{
