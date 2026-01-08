@@ -1,11 +1,17 @@
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import javax.swing.*;
 
-@SpringBootApplication
 public class AnotherMp3PlayerApplication {
-
 	public static void main(String[] args) {
-		SpringApplication.run(AnotherMp3PlayerApplication.class, args);
+		SwingUtilities.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+                try {
+                    new MP3PlayerGUI().setVisible(true);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+		});
 	}
 
 }
