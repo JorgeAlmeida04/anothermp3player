@@ -109,7 +109,7 @@ public class MP3PlayerGUI extends JFrame {
                     musicPlayer.setCurrentFrame(frame);
 
                     //Update current time in milliseconds as well
-                    musicPlayer.setCurrentTimeInMill((int) (frame/1.8 * musicPlayer.getCurrentSong().getFrameRatePerMilliseconds()));
+                    musicPlayer.setCurrentTimeInMill((int) (frame / (1.8 * musicPlayer.getCurrentSong().getFrameRatePerMilliseconds())));
 
                     //Resume the song
                     musicPlayer.playCurrentSong();
