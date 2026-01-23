@@ -310,7 +310,7 @@ public class MP3PlayerGUI extends JFrame {
     public void updateTitleAndArtist(Song song){
         songTitle.setText(song.getSongTitle());
         songArtist.setText(song.getSongArtist());
-        //Get and scale for the album cover
+        //Set and scale the album cover
         songImage.setIcon(new ImageIcon(song.getSongCover().getScaledInstance(getWidth()/2, getHeight()/3, Image.SCALE_SMOOTH)));
     }
 
