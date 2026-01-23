@@ -22,7 +22,7 @@ public class Song {
         try{
             mp3File = new Mp3File(filePath);
             frameRatePerMilliseconds = (double) mp3File.getFrameCount() / mp3File.getLengthInMilliseconds();
-            songLength =convertToSongLengthFormat();
+            songLength = convertToSongLengthFormat();
 
             //Usage of the jaudiotagger library to create an audio file obj to read mp3 file's information
             AudioFile audioFile = AudioFileIO.read(new File(filePath));

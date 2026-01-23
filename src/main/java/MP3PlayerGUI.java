@@ -195,6 +195,29 @@ public class MP3PlayerGUI extends JFrame {
         playlistMenu.add(createPlaylist);
 
         JMenuItem loadPlaylist = new JMenuItem("Load Playlist");
+        loadPlaylist.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    JFileChooser jFileChooser = new JFileChooser();
+                    jFileChooser.setFileFilter(new FileNameExtensionFilter("Playlist", "txt"));
+                    jFileChooser.setCurrentDirectory(new File("src/main/java/assets"));
+
+                    int result = jFileChooser.showOpenDialog(MP3PlayerGUI.this);
+                    File selectedFile = jFileChooser.getSelectedFile();
+
+                    if(result == JFileChooser.APPROVE_OPTION){
+                        //Stop music
+                        musicPlayer.stopSong();
+
+                        //Load Playlist
+                        musicPlayer.loadPlaylist(selectedFile);
+                    }
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        });
         playlistMenu.add(loadPlaylist);
 
         add(toolbar);
@@ -209,6 +232,17 @@ public class MP3PlayerGUI extends JFrame {
         JButton prevButton = new JButton(loadImage("src/main/java/assets/previous.png"));
         prevButton.setBorderPainted(false);
         prevButton.setBackground(null);
+        prevButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try{
+                    //Go to the previous song
+                    musicPlayer.previousSong();
+                }catch (Exception ex){
+                    throw new RuntimeException(ex);
+                }
+            }
+        });
         playbackButtons.add(prevButton);
 
         //Play Button
@@ -252,6 +286,17 @@ public class MP3PlayerGUI extends JFrame {
         JButton nextButton = new JButton(loadImage("src/main/java/assets/next.png"));
         nextButton.setBorderPainted(false);
         nextButton.setBackground(null);
+        nextButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    //Go to the next song
+                    musicPlayer.nextSong();
+                }catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        });
         playbackButtons.add(nextButton);
 
         add(playbackButtons);
@@ -259,15 +304,15 @@ public class MP3PlayerGUI extends JFrame {
 
     //Method used to update the slider from the music player class
     public void setPlaybackSliderValue(int frame){
-
+        playbackSlider.setValue(frame);
     }
 
-    private void updateTitleAndArtist(Song song){
+    public void updateTitleAndArtist(Song song){
         songTitle.setText(song.getSongTitle());
         songArtist.setText(song.getSongArtist());
     }
 
-    private void updatePlaybackSlider(Song song){
+    public void updatePlaybackSlider(Song song){
         //Update max count for slider
         playbackSlider.setMaximum(song.getMp3File().getFrameCount());
 
@@ -291,7 +336,7 @@ public class MP3PlayerGUI extends JFrame {
         playbackSlider.setPaintLabels(true);
     }
 
-    private void enablePause(){
+    public void enablePause(){
         //Retrieve reference to play and pause buttons from playbackButtons panel
         JButton playBtn = (JButton) playbackButtons.getComponent(1);
         JButton pauseBtn = (JButton) playbackButtons.getComponent(2);
@@ -306,7 +351,7 @@ public class MP3PlayerGUI extends JFrame {
 
     }
 
-    private void enablePlay(){
+    public void enablePlay(){
         //Retrieve reference to play and pause buttons from playbackButtons panel
         JButton playBtn = (JButton) playbackButtons.getComponent(1);
         JButton pauseBtn = (JButton) playbackButtons.getComponent(2);
