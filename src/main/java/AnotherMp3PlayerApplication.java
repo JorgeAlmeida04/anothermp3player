@@ -9,10 +9,6 @@ public class AnotherMp3PlayerApplication {
 			public void run() {
                 try {
                     new MP3PlayerGUI().setVisible(true);
-
-                    //Song song = new Song("src/main/java/assets/Wind Riders - Asher Fulero.mp3");
-                    //System.out.println(song.getSongTitle());
-                    //System.out.println(song.getSongArtist());
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

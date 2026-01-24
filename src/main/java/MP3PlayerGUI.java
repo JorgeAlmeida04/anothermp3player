@@ -30,13 +30,17 @@ public class MP3PlayerGUI extends JFrame {
     public MP3PlayerGUI() throws Exception{
         //This will call the JFrame constructor to configure the header title to "Another MP3 Player"
         super("Another MP3 Player");
+
         //Set the width and height of the window
         setSize(400, 800);
 
         //End process when app is closed
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        //Lauch the app at the center of the screen
+        //Set layout of the frame
+        this.setLayout(new BorderLayout());
+
+        //Launch the app at the center of the screen
         setLocationRelativeTo(null);
 
         //uncomment the next line to prevent the app from being resized
@@ -137,6 +141,7 @@ public class MP3PlayerGUI extends JFrame {
 
         //Add drop menu
         JMenuBar menuBar = new JMenuBar();
+        menuBar.setBackground(new Color(126, 128, 100));
         toolbar.add(menuBar);
 
         //loading song menu option
@@ -220,7 +225,7 @@ public class MP3PlayerGUI extends JFrame {
         });
         playlistMenu.add(loadPlaylist);
 
-        add(toolbar);
+        add(toolbar, BorderLayout.NORTH);
     }
 
     private void addPlaybackButtons() throws Exception{
