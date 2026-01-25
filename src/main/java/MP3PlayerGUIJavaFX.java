@@ -1,15 +1,28 @@
 import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
+import javafx.geometry.Point2D;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.chart.NumberAxis;
 import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Popup;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.Observable;
@@ -22,8 +35,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private MusicPlayerModel musicPlayer;
 
     //Global variables for the playback buttons
-    private Button pauseButton;
-    private Button playButton;
+    private Button playPauseButton;
     private Button nextButton;
     private Button prevButton;
 
@@ -52,6 +64,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private Label songArtist;
     private Label songCover;
 
+    //Layout for the center
+    private HBox centerHBox;
+
     //Main Stage variables
     private Stage window;
     private Scene scene;
@@ -60,22 +75,13 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private void addPlaybackButtons() {
         //Creation of the playback buttons
         //and set up of the action handler
-        pauseButton = new Button();
-        setImage(pauseButton, "new-pause.png");
-        pauseButton.setOnAction(e ->{
-                    System.out.println("Paused");
-                    playButton.setVisible(true);
-                    pauseButton.setVisible(false);
-                }
+        playPauseButton = new Button();
+        setImage(playPauseButton, "new-play.png");
+        playPauseButton.setOnAction(e ->{
+                setImage(playPauseButton, "new-pause.png");
+                System.out.println("Paused");
+            }
         );
-
-        playButton = new Button();
-        setImage(playButton, "new-play.png");
-        playButton.setOnAction(e  -> {
-            System.out.println("Playing");
-            playButton.setVisible(false);
-            pauseButton.setVisible(true);
-        });
 
         nextButton = new Button("Next");
         nextButton.setOnAction(e -> System.out.println("Next"));
@@ -83,7 +89,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         prevButton = new Button("Prev");
         prevButton.setOnAction(e -> System.out.println("Prev"));
 
-        playbackBox.getChildren().addAll(prevButton, pauseButton, playButton, nextButton);
+        playbackBox.getChildren().addAll(prevButton, playPauseButton, nextButton);
     }
 
     private void addMenuBarItems() {
@@ -120,6 +126,55 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         menuBar.getMenus().addAll(songsMenu, playlistMenu);
     }
 
+    private void initSongInfoVisualizer(){
+        centerHBox = new HBox();
+        centerHBox.setSpacing(10);
+        centerHBox.setPadding(new Insets(10, 10, 0, 10));
+        centerHBox.setAlignment(Pos.CENTER);
+        songTitle = new Label("Song Title");
+        songArtist = new Label("Song Artist");
+        songCover = new Label("Song Cover");
+
+        centerHBox.getChildren().addAll(songTitle, songArtist, songCover);
+    }
+
+    private void initVolumeSlider(){
+        this.volumeSlider = new Slider(0, 0, 0);
+        this.volumeSlider.setOrientation(Orientation.VERTICAL);
+        this.volumeSlider.setPadding(new Insets(10, 10, 0, 10));
+        this.volumeSlider.setMaxHeight(80);
+        this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            this.musicPlayer.volumeChange(newValue.doubleValue());
+        });
+    }
+
+    private void initSongSlider(){
+        this.songSlider = new Slider(0, 0, 0);
+        this.songSlider.setShowTickMarks(true);
+        this.songSlider.setShowTickLabels(false);
+        this.songSlider.setMajorTickUnit(60 * 44231.5636364);
+
+        Label label = new Label();
+        Popup popup = new Popup();
+        popup.getContent().add(label);
+        this.songSlider.setOnMouseClicked(event -> {
+            this.musicPlayer.setSongPosition(((int) this.songSlider.getValue()));
+        });
+        this.songSlider.setOnMouseMoved(event -> {
+            NumberAxis axis = (NumberAxis) songSlider.lookup(".axis");
+            Point2D location = axis.sceneToLocal(event.getSceneX(), event.getSceneY());
+            double mouseX = location.getX();
+            double value = axis.getValueForDisplay(mouseX).doubleValue();
+            if(value >= this.songSlider.getMin() && value <= this.songSlider.getMax()){
+                label.setText(String.format("%d:%02d", (int)(value/44231.5636364)/60, (int)(value%44231.5636364)%60));
+            }else{
+                label.setText("Load A Song To Start");
+            }
+            popup.setAnchorX(event.getSceneX() - 5);
+            popup.setAnchorY(event.getSceneY() - 20);
+        });
+    }
+
     private void setImage(ButtonBase b, String fileName){
         String resourcePath = "/assets/" + fileName;
         var inputStream = getClass().getResourceAsStream(resourcePath);
@@ -145,25 +200,55 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     }
 
     //Loads a new song. Updates the song slider and volume slider accordingly
-    public void loadSong(File file){
+    private void loadSong(File file){
         if(this.musicPlayer.hasClip() && this.musicPlayer.isRunning()){
             this.musicPlayer.stop();
         }
         this.musicPlayer.changeSong(file);
         this.window.setTitle(file.getName() + "~ Another MP3 Player");
+
+        updateVolumeSlider();
+        updateSongSlider();
+    }
+
+    private void loadPlaylistSong(){
+        boolean wasRunning = false;
+        if(this.musicPlayer.hasClip() && this.musicPlayer.isRunning()){
+            this.musicPlayer.stop();
+            wasRunning = true;
+        }
+        File song = this.musicPlayer.loadNextSong();
+        this.window.setTitle(song.getName() + "~ Another MP3 Player");
+
+        updateVolumeSlider();
+        updateSongSlider();
+
+        if(wasRunning){
+            setImage(this.playPauseButton, "new-pause.png");
+            this.musicPlayer.start();
+        }
+    }
+
+    //Update volume slider
+    private void updateVolumeSlider(){
         int MIN_VOL = (int) this.musicPlayer.getMinVolume();
         int MAX_VOL = (int) this.musicPlayer.getMaxVolume();
-
-        //Update volume slider
         int half = (MAX_VOL - MIN_VOL) / 2;
         this.volumeSlider.setMax(MAX_VOL);
         this.volumeSlider.setMin(half);
         this.volumeSlider.setValue((double) (MAX_VOL + half) / 2);
+    }
 
-        //Update song slider
+    //Update song slider
+    private void updateSongSlider(){
         this.songSlider.setMax(this.musicPlayer.getClipLength());
         this.songSlider.setMin(0);
         this.songSlider.setValue(0);
+    }
+
+    //Notifies the GUI to update
+    private void notifyGUI(){
+        this.musicPlayer.announceChanges();
     }
 
     @Override
@@ -183,7 +268,21 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         //Playback Buttons
         addPlaybackButtons();
 
-        KeyFrame updater = new KeyFrame(Duration.seconds(DEFAULT_UPDATE_DURATION), e -> System.out.println("Updating"));
+        //Song info visualizer
+        initSongInfoVisualizer();
+
+        //Init volume slider
+        initVolumeSlider();
+
+        //Init song slider
+        initSongSlider();
+
+        //Starts a TimeLine that automatically updates the gui every second
+        //This allows for the song slider to move the song's position
+        KeyFrame updater = new KeyFrame(Duration.seconds(DEFAULT_UPDATE_DURATION), e -> notifyGUI());
+        Timeline t = new Timeline(updater);
+        t.setCycleCount(Timeline.INDEFINITE);
+        t.play();
 
         window = stage;
         window.setTitle("Another MP3 Player");
@@ -193,9 +292,11 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         });
 
         layout = new BorderPane();
-        layout.setBottom(playbackBox);
-        layout.setTop(menuBar);
-        playButton.setVisible(false);
+        layout.setBottom(this.playbackBox);
+        layout.setTop(this.menuBar);
+        layout.setCenter(this.centerHBox);
+        layout.setRight(this.volumeSlider);
+        layout.setLeft(this.songSlider);
 
         scene = new Scene(layout, 1260, 720);
 
