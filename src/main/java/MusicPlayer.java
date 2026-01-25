@@ -12,6 +12,8 @@ public class MusicPlayer extends PlaybackListener {
 
     private MP3PlayerGUI mp3PlayerGUI;
 
+    private MP3PlayerGUIJavaFX mp3PlayerGUIJavaFX;
+
     private Song currentSong;
     public Song getCurrentSong(){
         return currentSong;
@@ -49,6 +51,10 @@ public class MusicPlayer extends PlaybackListener {
 
     public MusicPlayer(MP3PlayerGUI mp3PlayerGUI){
         this.mp3PlayerGUI = mp3PlayerGUI;
+    }
+
+    public MusicPlayer(MP3PlayerGUIJavaFX mp3PlayerGUIJavaFX){
+        this.mp3PlayerGUIJavaFX = mp3PlayerGUIJavaFX;
     }
 
     public void loadSong(Song song) throws Exception{

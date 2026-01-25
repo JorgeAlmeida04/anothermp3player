@@ -36,7 +36,7 @@ public class Song {
             //Usage of the jaudiotagger library to create an audio file obj to read mp3 file's information
             AudioFile audioFile = AudioFileIO.read(new File(filePath));
 
-            //Read through the meta data of the audio file
+            //Read through the metadata of the audio file
             Tag tag = audioFile.getTag();
             if(tag != null){
                 songTitle = tag.getFirst(FieldKey.TITLE);
