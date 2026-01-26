@@ -1,0 +1,15 @@
+.root{
+    -fx-background-color: linear-gradient(from 25% 25% to 100% 100%, #0F2027, #203A43, #2C5364);
+}
+
+.menu-bar{
+    -fx-background-color: linear-gradient(from 25% 25% to 100% 100%, #0F2027, #203A43, #2C5364);
+}
+
+.menu-item{
+    -fx-background-color: #0F2027;
+}
+
+.label{
+    -fx-text-fill: white;
+}

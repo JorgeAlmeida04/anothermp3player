@@ -2,6 +2,10 @@ import javax.sound.sampled.*;
 import java.io.File;
 import java.util.List;
 import java.util.Observable;
+
+import com.mpatric.mp3agic.ID3v1;
+import com.mpatric.mp3agic.ID3v2;
+import com.mpatric.mp3agic.Mp3File;
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Decoder;
 import javazoom.jl.decoder.Header;
@@ -18,6 +22,9 @@ public class MusicPlayerModel extends Observable {
     private AudioFormat decodeFormat;
     private List<File> playlist;
     private int playlistPosition;
+    private String currentTitle;
+    private String currentArtist;
+    private byte[] currentAlbumImage;
 
     public MusicPlayerModel() {
         this.clip = null;
@@ -31,6 +38,7 @@ public class MusicPlayerModel extends Observable {
     //Change the song loaded onto the clip
     public void changeSong(File mp3){
         try{
+            extractMetadata(mp3);
             this.audioStream = getAudioInputStream(mp3);
             this.audioFormat = audioStream.getFormat();
 
@@ -60,6 +68,31 @@ public class MusicPlayerModel extends Observable {
             e.printStackTrace();
         } finally {
             announceChanges();
+        }
+    }
+
+    private void extractMetadata(File file){
+        try{
+            Mp3File mp3File = new Mp3File(file);
+
+            //Reset Defaults
+            this.currentTitle = file.getName();
+            this.currentArtist = "Unknown Artist";
+            this.currentAlbumImage = null;
+
+            if(mp3File.hasId3v2Tag()){
+                ID3v2 id3v2Tag = mp3File.getId3v2Tag();
+                this.currentTitle = id3v2Tag.getTitle();
+                this.currentArtist = id3v2Tag.getArtist();
+                this.currentAlbumImage = id3v2Tag.getAlbumImage();
+            }else if(mp3File.hasId3v1Tag()){
+                //ID3v1 does not support images
+                ID3v1 id3v1Tag = mp3File.getId3v1Tag();
+                this.currentTitle = id3v1Tag.getTitle();
+                this.currentArtist = id3v1Tag.getArtist();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -187,6 +220,18 @@ public class MusicPlayerModel extends Observable {
                 this.clip.start();
             }
         }
+    }
+
+    public String getSongTitle(){
+        return  this.currentTitle;
+    }
+
+    public String getSongArtist(){
+        return  this.currentArtist;
+    }
+
+    public byte[]  getSongAlbumImage(){
+        return  this.currentAlbumImage;
     }
 
     //Sets the playlist to the new list

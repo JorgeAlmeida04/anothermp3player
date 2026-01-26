@@ -14,6 +14,10 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.RadialGradient;
+import javafx.scene.paint.Stop;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
@@ -23,9 +27,11 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.awt.*;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
@@ -152,14 +158,16 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             }
         });
 
-        nextButton = new Button("Next");
+        nextButton = new Button();
+        setImage(nextButton, "next.png");
         nextButton.setOnAction(e -> {
             if (this.musicPlayer.hasPlaylist()) {
                 loadPlaylistSong();
             }
         });
 
-        prevButton = new Button("Prev");
+        prevButton = new Button();
+        setImage(prevButton, "prev.png");
         prevButton.setOnAction(e -> {
             if (this.musicPlayer.hasPlaylist()) {
                 boolean wasRunning = this.musicPlayer.isRunning();
@@ -344,7 +352,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         if(this.musicPlayer.hasClip()) {
             this.window.setTitle(this.songFile.getName() + "~ Another MP3 Player");
-
             updateSongLabels();
             updateVolumeSlider();
             updateSongSlider();
@@ -360,9 +367,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         File song = this.musicPlayer.loadNextSong();
         if(song != null && this.musicPlayer.hasClip()) {
             this.window.setTitle(song.getName() + "~ Another MP3 Player");
-
+            updateSongLabels();
             updateVolumeSlider();
             updateSongSlider();
+            this.musicPlayer.start();
 
             if (wasRunning) {
                 setImage(this.playPauseButton, "new-pause.png");
@@ -373,9 +381,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     //Update song labels
     private void updateSongLabels(){
-        this.songTitle.setText(songFile.getName());
-        this.songArtist.setText(songFile.getName());
-        //this.songCover.setText(songFile.getName());
+        this.songTitle.setText(this.musicPlayer.getSongTitle());
+        this.songArtist.setText(this.musicPlayer.getSongArtist());
+        ByteArrayInputStream bis =new  ByteArrayInputStream(this.musicPlayer.getSongAlbumImage());
+        this.songCover.setImage(new Image(bis, 400, 400, true, true));
     }
 
     //Update volume slider
@@ -435,6 +444,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         layout.setCenter(this.songCover);
 
         scene = new Scene(layout, 1260, 720);
+        scene.getStylesheets().add("Default_Theme.css");
 
         window.setScene(scene);
         window.show();
