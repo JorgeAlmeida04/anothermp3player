@@ -1,10 +1,8 @@
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
+import javafx.geometry.*;
 import javafx.geometry.Insets;
-import javafx.geometry.Orientation;
-import javafx.geometry.Point2D;
-import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.control.*;
@@ -15,8 +13,10 @@ import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
+import javafx.scene.layout.*;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontPosture;
+import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
@@ -24,6 +24,8 @@ import javafx.util.Duration;
 
 import java.awt.*;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
@@ -43,8 +45,11 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private Slider songSlider;
     private Slider volumeSlider;
 
-    //Global variable of the bottom bar container
-    private HBox playbackBox;
+    //Bottom container (it will have the buttons container and the song slider)
+    private GridPane bottomLayout;
+
+    //Buttons container
+    private GridPane playbackBox;
 
     //Uploaded song file
     private File songFile;
@@ -63,15 +68,72 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     //Song information to display
     private Label songTitle;
     private Label songArtist;
-    private Label songCover;
+    private ImageView songCover;
 
     //Layout for the center
-    private HBox centerHBox;
+    private VBox centerHBox;
 
     //Main Stage variables
     private Stage window;
     private Scene scene;
     private BorderPane layout;
+
+    private void initBottomLayout() throws FileNotFoundException {
+        this.bottomLayout = new GridPane();
+        this.bottomLayout.setHgap(1);
+        //this.bottomLayout.gridLinesVisibleProperty().setValue(true);
+        this.bottomLayout.setMaxWidth(Double.MAX_VALUE);
+        this.bottomLayout.setAlignment(Pos.CENTER);
+        this.bottomLayout.setPadding(new Insets(5, 5, 5, 5));
+
+        //Configure the constraints for the columns on the bottomLayout grid
+        ColumnConstraints column1 = new ColumnConstraints();
+
+        column1.setHgrow(Priority.ALWAYS);
+        column1.setFillWidth(true);
+
+        this.bottomLayout.getColumnConstraints().addAll(column1);
+
+        //Init playback buttons container
+        this.playbackBox = new GridPane();
+        this.playbackBox.setVgap(2);
+        this.bottomLayout.setMaxWidth(Double.MAX_VALUE);
+        this.playbackBox.setAlignment(Pos.CENTER);
+        this.playbackBox.setPadding(new Insets(5, 5, 5, 5));
+
+        //Configure the constraints for the playbackBox grid
+        ColumnConstraints col1 = new ColumnConstraints(), col2 = new ColumnConstraints(), col3 = new ColumnConstraints();
+
+        col1.setPercentWidth(25);
+        col1.setHalignment(HPos.LEFT); // Keep buttons to the left
+
+        col2.setPercentWidth(50);
+        col2.setHalignment(HPos.CENTER); // Center the text perfectly
+
+        col3.setPercentWidth(25);
+        col3.setHalignment(HPos.RIGHT); // Keep volume slider to the right
+
+        playbackBox.getColumnConstraints().addAll(col1, col2, col3);
+
+        //Config playback buttons
+        addPlaybackButtons();
+
+        //Config song slider
+        initSongSlider();
+
+        //Config volume slider
+        initVolumeSlider();
+
+        //Config song info
+        initSongInfoVisualizer();
+
+        this.playbackBox.add(centerHBox, 1, 0);
+        this.playbackBox.add(volumeSlider, 2, 0);
+
+        this.bottomLayout.add(songSlider, 0, 0);
+        this.bottomLayout.add(playbackBox,0,1);
+
+    }
 
     private void addPlaybackButtons() {
         //Creation of the playback buttons
@@ -115,8 +177,15 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             }
         });
 
-        playbackBox.getChildren().addAll(prevButton, playPauseButton, nextButton);
-        playbackBox.setPadding(new Insets(5, 5, 5, 5));
+        //Creation of the buttons specific containers
+        FlowPane playbackButtons = new FlowPane();
+
+        playbackButtons.setHgap(5);
+        playbackButtons.setAlignment(Pos.CENTER);
+        playbackButtons.setPadding(new Insets(5, 5, 5, 5));
+        playbackButtons.getChildren().addAll(prevButton, playPauseButton, nextButton);
+
+        playbackBox.add(playbackButtons, 0, 0);
     }
 
     private void addMenuBarItems() {
@@ -130,6 +199,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             if(this.songFile != null){
                 loadSong();
                 this.musicPlayer.setPlaylist(null);
+                this.musicPlayer.start();
             }
             System.out.println("Loading song");
         });
@@ -154,21 +224,28 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         menuBar.getMenus().addAll(songsMenu, playlistMenu);
     }
 
-    private void initSongInfoVisualizer(){
-        centerHBox = new HBox();
+    private void initSongInfoVisualizer() throws FileNotFoundException {
+        centerHBox = new VBox();
         centerHBox.setSpacing(10);
         centerHBox.setPadding(new Insets(10, 10, 0, 10));
         centerHBox.setAlignment(Pos.CENTER);
-        songTitle = new Label("Song Title");
-        songArtist = new Label("Song Artist");
-        songCover = new Label("Song Cover");
 
-        centerHBox.getChildren().addAll(songTitle, songArtist, songCover);
+        //Set up song title
+        songTitle = new Label("Song Title");
+        songTitle.setFont(Font.font("Comic Sans MS", FontWeight.BOLD, FontPosture.REGULAR, 25));
+
+        //Set up song artist
+        songArtist = new Label("Song Artist");
+        songArtist.setFont(Font.font("Comic Sans MS", FontWeight.SEMI_BOLD, FontPosture.REGULAR, 16));
+
+        setSongCover();
+
+        centerHBox.getChildren().addAll(songTitle, songArtist);
     }
 
     private void initVolumeSlider(){
         this.volumeSlider = new Slider(0, 0, 0);
-        this.volumeSlider.setOrientation(Orientation.VERTICAL);
+        this.volumeSlider.setOrientation(Orientation.HORIZONTAL);
         this.volumeSlider.setPadding(new Insets(10, 10, 0, 10));
         this.volumeSlider.setMaxHeight(80);
         this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
@@ -181,7 +258,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.songSlider.setShowTickMarks(true);
         this.songSlider.setShowTickLabels(false);
         this.songSlider.setMajorTickUnit(60 * 44231.5636364);
-        this.songSlider.setOrientation(Orientation.VERTICAL);
+        this.songSlider.setOrientation(Orientation.HORIZONTAL);
 
         Label label = new Label();
         Popup popup = new Popup();
@@ -206,6 +283,13 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.songSlider.setOnMouseExited(event -> popup.hide());
 
         this.songSlider.setPadding(new Insets(5));
+    }
+
+    //Set initial cover
+    private void setSongCover() throws FileNotFoundException {
+        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/miku.jpg");
+        Image image = new Image(inputStream);
+        this.songCover = new ImageView(image);
     }
 
     private void setImage(ButtonBase b, String fileName){
@@ -291,7 +375,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private void updateSongLabels(){
         this.songTitle.setText(songFile.getName());
         this.songArtist.setText(songFile.getName());
-        this.songCover.setText(songFile.getName());
+        //this.songCover.setText(songFile.getName());
     }
 
     //Update volume slider
@@ -323,23 +407,13 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     @Override
     public void start(Stage stage) throws Exception {
-        playbackBox = new HBox(10);
         menuBar = new MenuBar();
 
         //Top Bar Navigation
         addMenuBarItems();
 
-        //Playback Buttons
-        addPlaybackButtons();
-
-        //Song info visualizer
-        initSongInfoVisualizer();
-
-        //Init volume slider
-        initVolumeSlider();
-
-        //Init song slider
-        initSongSlider();
+        //Bottom container config
+        initBottomLayout();
 
         //Starts a TimeLine that automatically updates the gui every second
         //This allows for the song slider to move the song's position
@@ -356,11 +430,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         });
 
         layout = new BorderPane();
-        layout.setBottom(this.playbackBox);
+        layout.setBottom(this.bottomLayout);
         layout.setTop(this.menuBar);
-        layout.setCenter(this.centerHBox);
-        layout.setRight(this.volumeSlider);
-        layout.setLeft(this.songSlider);
+        layout.setCenter(this.songCover);
 
         scene = new Scene(layout, 1260, 720);
 
