@@ -2,6 +2,13 @@ import javax.sound.sampled.*;
 import java.io.File;
 import java.util.List;
 import java.util.Observable;
+import javazoom.jl.decoder.Bitstream;
+import javazoom.jl.decoder.Decoder;
+import javazoom.jl.decoder.Header;
+import javazoom.jl.decoder.SampleBuffer;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 
 public class MusicPlayerModel extends Observable {
     private Clip clip;
@@ -12,43 +19,102 @@ public class MusicPlayerModel extends Observable {
     private List<File> playlist;
     private int playlistPosition;
 
-    public MusicPlayerModel() {}
+    public MusicPlayerModel() {
+        this.clip = null;
+        this.audioStream = null;
+        this.audioFormat = null;
+        this.decodeFormat = null;
+        this.decodeStream = null;
+        this.playlist = null;
+    }
 
     //Change the song loaded onto the clip
     public void changeSong(File mp3){
         try{
-            this.audioStream = AudioSystem.getAudioInputStream(mp3);
+            this.audioStream = getAudioInputStream(mp3);
             this.audioFormat = audioStream.getFormat();
-            this.decodeFormat = new AudioFormat(
-                    AudioFormat.Encoding.PCM_SIGNED,
-                    audioFormat.getSampleRate(),
-                    16,
-                    audioFormat.getChannels(),
-                    audioFormat.getChannels()*2,
-                    audioFormat.getSampleRate(),
-                    false
-            );
-            this.decodeStream = AudioSystem.getAudioInputStream(decodeFormat, audioStream);
+
+            // If the format is already PCM_SIGNED and compatible, use it directly
+            // Otherwise, try to convert (legacy logic for WAVs that might be different)
+            if (this.audioFormat.getEncoding() == AudioFormat.Encoding.PCM_SIGNED &&
+                this.audioFormat.getSampleSizeInBits() == 16 &&
+                !this.audioFormat.isBigEndian()) {
+                 this.decodeStream = this.audioStream;
+            } else {
+                this.decodeFormat = new AudioFormat(
+                        AudioFormat.Encoding.PCM_SIGNED,
+                        audioFormat.getSampleRate(),
+                        16,
+                        audioFormat.getChannels(),
+                        audioFormat.getChannels() * 2,
+                        audioFormat.getSampleRate(),
+                        false
+                );
+                this.decodeStream = AudioSystem.getAudioInputStream(decodeFormat, audioStream);
+            }
+            
             this.clip = AudioSystem.getClip();
             this.clip.open(decodeStream);
             this.clip.setFramePosition(0);
-        } catch(Exception e) {
-            System.out.println("Failed to load audio");
+        } catch (Exception e) {
+            e.printStackTrace();
         } finally {
             announceChanges();
         }
     }
 
+    private AudioInputStream getAudioInputStream(File file) throws Exception {
+        try {
+            return AudioSystem.getAudioInputStream(file);
+        } catch (UnsupportedAudioFileException e) {
+            return decodeMp3(file);
+        }
+    }
+
+    private AudioInputStream decodeMp3(File file) throws Exception {
+        FileInputStream fis = new FileInputStream(file);
+        Bitstream bitstream = new Bitstream(fis);
+        Decoder decoder = new Decoder();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        Header h = bitstream.readFrame();
+        if (h == null) {
+            return null;
+        }
+
+        int sampleRate = h.frequency();
+        int channels = (h.mode() == Header.SINGLE_CHANNEL) ? 1 : 2;
+
+        int frames = 0;
+        while (h != null) {
+            SampleBuffer sb = (SampleBuffer) decoder.decodeFrame(h, bitstream);
+            short[] buffer = sb.getBuffer();
+            int len = sb.getBufferLength();
+            for (int i = 0; i < len; i++) {
+                short s = buffer[i];
+                out.write(s & 0xff);
+                out.write((s >> 8) & 0xff);
+            }
+            bitstream.closeFrame();
+            frames++;
+            h = bitstream.readFrame();
+        }
+        bitstream.close();
+
+        byte[] audioData = out.toByteArray();
+        AudioFormat format = new AudioFormat(sampleRate, 16, channels, true, false);
+        return new AudioInputStream(new ByteArrayInputStream(audioData), format, audioData.length / format.getFrameSize());
+    }
+
     //Loads the next song in the playlist
     public File loadNextSong(){
-        if(this.playlist != null){
-            changeSong(this.playlist.get(this.playlistPosition++));
-            File song = this.playlist.get(this.playlistPosition);
+        if(this.playlist != null && !this.playlist.isEmpty()){
             this.playlistPosition++;
-            //Verifies if we are at the end of the playlist
             if(this.playlistPosition >= this.playlist.size()){
                 this.playlistPosition = 0;
             }
+            File song = this.playlist.get(this.playlistPosition);
+            changeSong(song);
             return song;
         }
         return null;
@@ -56,14 +122,13 @@ public class MusicPlayerModel extends Observable {
 
     //Loads the previous song on the playlist
     public File loadPreviousSong(){
-        if(this.playlist != null){
-            changeSong(this.playlist.get(this.playlistPosition--));
-            File song = this.playlist.get(this.playlistPosition);
+        if(this.playlist != null && !this.playlist.isEmpty()){
             this.playlistPosition--;
-            //Verifies if we are at the start of the playlist
             if(this.playlistPosition < 0){
                 this.playlistPosition = this.playlist.size() - 1;
             }
+            File song = this.playlist.get(this.playlistPosition);
+            changeSong(song);
             return song;
         }
         return null;
@@ -87,11 +152,16 @@ public class MusicPlayerModel extends Observable {
     public void volumeChange(double decibels){
         if(hasClip()){
             FloatControl gainControl = (FloatControl) this.clip.getControl(FloatControl.Type.MASTER_GAIN);
-            if(decibels == (getMaxVolume() + getMinVolume()) / 2){
-                gainControl.setValue((float) this.getMinVolume());
-            }else{
-                gainControl.setValue((float) decibels);
+            float min = gainControl.getMinimum();
+            float max = gainControl.getMaximum();
+
+            if (decibels < min) {
+                decibels = min;
+            } else if (decibels > max) {
+                decibels = max;
             }
+            
+            gainControl.setValue((float) decibels);
         }
     }
 
@@ -156,7 +226,7 @@ public class MusicPlayerModel extends Observable {
 
     //Returns the state of the music player
     public boolean isRunning(){
-        return hasClip() && this.clip.isRunning() || atEnd();
+        return hasClip() && (this.clip.isRunning() || atEnd());
     }
 
     //Checks if the music player has a current song

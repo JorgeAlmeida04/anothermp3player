@@ -25,6 +25,7 @@ import javafx.util.Duration;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
 
@@ -48,6 +49,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     //Uploaded song file
     private File songFile;
+    private List<File> playlistSongs;
 
     //Global variables for the navigation menus
     private MenuBar menuBar;
@@ -78,18 +80,44 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         playPauseButton = new Button();
         setImage(playPauseButton, "new-play.png");
         playPauseButton.setOnAction(e ->{
-                setImage(playPauseButton, "new-pause.png");
-                System.out.println("Paused");
+            if (this.musicPlayer.hasClip()) {
+                if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
+                    this.musicPlayer.stop();
+                    setImage(playPauseButton, "new-play.png");
+                } else {
+                    this.musicPlayer.start();
+                    setImage(playPauseButton, "new-pause.png");
+                }
             }
-        );
+        });
 
         nextButton = new Button("Next");
-        nextButton.setOnAction(e -> System.out.println("Next"));
+        nextButton.setOnAction(e -> {
+            if (this.musicPlayer.hasPlaylist()) {
+                loadPlaylistSong();
+            }
+        });
 
         prevButton = new Button("Prev");
-        prevButton.setOnAction(e -> System.out.println("Prev"));
+        prevButton.setOnAction(e -> {
+            if (this.musicPlayer.hasPlaylist()) {
+                boolean wasRunning = this.musicPlayer.isRunning();
+                this.musicPlayer.stop();
+                File song = this.musicPlayer.loadPreviousSong();
+                if (song != null) {
+                    this.window.setTitle(song.getName() + " ~ Another MP3 Player");
+                    updateVolumeSlider();
+                    updateSongSlider();
+                    if (wasRunning) {
+                        this.musicPlayer.start();
+                        setImage(this.playPauseButton, "new-pause.png");
+                    }
+                }
+            }
+        });
 
         playbackBox.getChildren().addAll(prevButton, playPauseButton, nextButton);
+        playbackBox.setPadding(new Insets(5, 5, 5, 5));
     }
 
     private void addMenuBarItems() {
@@ -98,9 +126,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         loadSong = new MenuItem("Load Song");
         loadSong.setOnAction(e -> {
-            songFile = fileSelection();
-            if(songFile != null){
-                loadSong(songFile);
+            fileSelection();
+            System.out.println(this.songFile.getName());
+            if(this.songFile != null){
+                loadSong();
                 this.musicPlayer.setPlaylist(null);
             }
             System.out.println("Loading song");
@@ -118,7 +147,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         loadPlaylist = new MenuItem("Load Playlist");
         loadPlaylist.setOnAction(e -> {
-            songFile = fileSelection();
+            this.playlistSongs = multipleFileSelection();
             System.out.println("Loading playlist");
         });
 
@@ -153,6 +182,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.songSlider.setShowTickMarks(true);
         this.songSlider.setShowTickLabels(false);
         this.songSlider.setMajorTickUnit(60 * 44231.5636364);
+        this.songSlider.setOrientation(Orientation.VERTICAL);
 
         Label label = new Label();
         Popup popup = new Popup();
@@ -173,6 +203,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             popup.setAnchorX(event.getSceneX() - 5);
             popup.setAnchorY(event.getSceneY() - 20);
         });
+        this.songSlider.setOnMouseEntered(event -> popup.show(songSlider, event.getScreenX()-5, event.getScreenY()-20));
+        this.songSlider.setOnMouseExited(event -> popup.hide());
+
+        this.songSlider.setPadding(new Insets(5));
     }
 
     private void setImage(ButtonBase b, String fileName){
@@ -188,7 +222,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     }
 
     //Loads the new song file to the system
-    private File fileSelection(){
+    private void fileSelection(){
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Select a mp3 file");
         fileChooser.setInitialDirectory(new File(System.getProperty("user.home") + "\\Music"));
@@ -196,19 +230,42 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                 new FileChooser.ExtensionFilter("MP3 File", "*.mp3"),
                 new FileChooser.ExtensionFilter("All File", "*.*")
         );
-        return fileChooser.showOpenDialog(window);
+        this.songFile = fileChooser.showOpenDialog(window);
+    }
+
+    private List<File> multipleFileSelection(){
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select a mp3 file");
+        fileChooser.setInitialDirectory(new File(System.getProperty("user.home") + "\\Music"));
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("MP3 File", "*.mp3"),
+                new FileChooser.ExtensionFilter("All File", "*.*")
+        );
+
+        List<File> files = fileChooser.showOpenMultipleDialog(window);
+
+        if(files != null){
+            this.musicPlayer.setPlaylist(files);
+            loadPlaylistSong();
+        }
+
+        return null;
     }
 
     //Loads a new song. Updates the song slider and volume slider accordingly
-    private void loadSong(File file){
+    private void loadSong(){
         if(this.musicPlayer.hasClip() && this.musicPlayer.isRunning()){
             this.musicPlayer.stop();
         }
-        this.musicPlayer.changeSong(file);
-        this.window.setTitle(file.getName() + "~ Another MP3 Player");
+        this.musicPlayer.changeSong(this.songFile);
 
-        updateVolumeSlider();
-        updateSongSlider();
+        if(this.musicPlayer.hasClip()) {
+            this.window.setTitle(this.songFile.getName() + "~ Another MP3 Player");
+
+            updateSongLabels();
+            updateVolumeSlider();
+            updateSongSlider();
+        }
     }
 
     private void loadPlaylistSong(){
@@ -218,25 +275,33 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             wasRunning = true;
         }
         File song = this.musicPlayer.loadNextSong();
-        this.window.setTitle(song.getName() + "~ Another MP3 Player");
+        if(song != null && this.musicPlayer.hasClip()) {
+            this.window.setTitle(song.getName() + "~ Another MP3 Player");
 
-        updateVolumeSlider();
-        updateSongSlider();
+            updateVolumeSlider();
+            updateSongSlider();
 
-        if(wasRunning){
-            setImage(this.playPauseButton, "new-pause.png");
-            this.musicPlayer.start();
+            if (wasRunning) {
+                setImage(this.playPauseButton, "new-pause.png");
+                this.musicPlayer.start();
+            }
         }
+    }
+
+    //Update song labels
+    private void updateSongLabels(){
+        this.songTitle.setText(songFile.getName());
+        this.songArtist.setText(songFile.getName());
+        this.songCover.setText(songFile.getName());
     }
 
     //Update volume slider
     private void updateVolumeSlider(){
-        int MIN_VOL = (int) this.musicPlayer.getMinVolume();
-        int MAX_VOL = (int) this.musicPlayer.getMaxVolume();
-        int half = (MAX_VOL - MIN_VOL) / 2;
-        this.volumeSlider.setMax(MAX_VOL);
-        this.volumeSlider.setMin(half);
-        this.volumeSlider.setValue((double) (MAX_VOL + half) / 2);
+        double min = this.musicPlayer.getMinVolume();
+        double max = this.musicPlayer.getMaxVolume();
+        this.volumeSlider.setMin(min);
+        this.volumeSlider.setMax(max);
+        this.volumeSlider.setValue(max);
     }
 
     //Update song slider
@@ -258,7 +323,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     }
 
     @Override
-    public void start(Stage stage) throws IOException {
+    public void start(Stage stage) throws Exception {
         playbackBox = new HBox(10);
         menuBar = new MenuBar();
 
@@ -285,7 +350,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         t.play();
 
         window = stage;
-        window.setTitle("Another MP3 Player");
+        window.setTitle("No Song Selected ~ Another MP3 Player");
         window.setOnCloseRequest(e -> {
             System.out.println("Closing");
             window.close();
@@ -306,6 +371,22 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     @Override
     public void update(Observable o, Object arg) {
-
+        //Make sure play button is in sync
+        if(this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()){
+            setImage(playPauseButton, "new-pause.png");
+        }else{
+            setImage(playPauseButton, "new-play.png");
+        }
+        if(this.musicPlayer.hasClip()){
+            if(this.musicPlayer.atEnd()){
+                if(this.musicPlayer.hasPlaylist()){
+                    loadPlaylistSong();
+                }else{
+                    setImage(playPauseButton, "new-play.png");
+                }
+            }
+            //Update slider based on current song position
+            this.songSlider.setValue(this.musicPlayer.getClipCurrentValue());
+        }
     }
 }
