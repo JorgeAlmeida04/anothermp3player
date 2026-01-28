@@ -48,8 +48,14 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private Button prevButton;
 
     //Song and volume sliders global variables
-    private Slider songSlider;
     private Slider volumeSlider;
+    private ProgressBar volumeBar;
+    private StackPane volumeSliderBar;
+
+    //Sons slider variables
+    private Slider songSlider;
+    private ProgressBar songBar;
+    private StackPane songSliderBar;
 
     //Bottom container (it will have the buttons container and the song slider)
     private GridPane bottomLayout;
@@ -135,9 +141,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         initSongInfoVisualizer();
 
         this.playbackBox.add(centerHBox, 1, 0);
-        this.playbackBox.add(volumeSlider, 2, 0);
+        this.playbackBox.add(volumeSliderBar, 2, 0);
 
-        this.bottomLayout.add(songSlider, 0, 0);
+        this.bottomLayout.add(songSliderBar, 0, 0);
         this.bottomLayout.add(playbackBox,0,1);
 
     }
@@ -253,45 +259,87 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     }
 
     private void initVolumeSlider(){
-        this.volumeSlider = new Slider(0, 0, 0);
+        this.volumeBar = new ProgressBar(0);
+        this.volumeBar.getStyleClass().add("volume-bar");
+        this.volumeBar.setMaxWidth(Double.MAX_VALUE);
+
+        this.volumeSlider = new Slider(0, 1000, 50);
         this.volumeSlider.setOrientation(Orientation.HORIZONTAL);
-        this.volumeSlider.setPadding(new Insets(10, 10, 0, 10));
         this.volumeSlider.setMaxHeight(80);
         this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
             this.musicPlayer.volumeChange(newValue.doubleValue());
         });
+        this.volumeSlider.getStyleClass().add("volume-slider");
+
+        // Binds Progress = SliderValue / SliderMax
+        this.volumeBar.progressProperty().bind(
+                this.volumeSlider.valueProperty().divide(this.volumeSlider.maxProperty())
+        );
+
+        this.volumeSliderBar = new StackPane();
+        this.volumeSliderBar.getChildren().addAll(this.volumeBar, this.volumeSlider);
+        this.volumeSliderBar.setAlignment(Pos.CENTER);
+
     }
 
     private void initSongSlider(){
-        this.songSlider = new Slider(0, 0, 0);
-        this.songSlider.setShowTickMarks(true);
+        this.songBar = new ProgressBar(0.0);
+        this.songBar.getStyleClass().add("song-bar");
+        this.songBar.setMaxWidth(Double.MAX_VALUE);
+
+        this.songSlider = new Slider(0, 100, 0);
+        this.songSlider.setShowTickMarks(false);
         this.songSlider.setShowTickLabels(false);
         this.songSlider.setMajorTickUnit(60 * 44231.5636364);
         this.songSlider.setOrientation(Orientation.HORIZONTAL);
+        this.songSlider.getStyleClass().add("song-slider");
 
         Label label = new Label();
         Popup popup = new Popup();
         popup.getContent().add(label);
+
         this.songSlider.setOnMouseClicked(event -> {
             this.musicPlayer.setSongPosition(((int) this.songSlider.getValue()));
         });
         this.songSlider.setOnMouseMoved(event -> {
-            NumberAxis axis = (NumberAxis) songSlider.lookup(".axis");
-            Point2D location = axis.sceneToLocal(event.getSceneX(), event.getSceneY());
-            double mouseX = location.getX();
-            double value = axis.getValueForDisplay(mouseX).doubleValue();
-            if(value >= this.songSlider.getMin() && value <= this.songSlider.getMax()){
-                label.setText(String.format("%d:%02d", (int)(value/44231.5636364)/60, (int)(value%44231.5636364)%60));
-            }else{
-                label.setText("Load A Song To Start");
+            double mouseX = event.getX();
+            double totalWidth = songSlider.getWidth();
+
+            if (totalWidth <= 0) return;
+
+            double percentage = mouseX / totalWidth;
+
+            percentage = Math.max(0, Math.min(1, percentage));
+
+            // Convert percentage to actual Value
+            double min = songSlider.getMin();
+            double max = songSlider.getMax();
+            double hoverValue = min + (percentage * (max - min));
+
+            if (max > 0) {
+                double timeUnit = 44231.5636364; // Your specific unit
+                int minutes = (int) (hoverValue / timeUnit) / 60;
+                int seconds = (int) (hoverValue % timeUnit) % 60; // Logic might need adjustment based on your unit
+
+                label.setText(String.format("%d:%02d", minutes, seconds));
+            } else {
+                label.setText("0:00");
             }
-            popup.setAnchorX(event.getSceneX() - 5);
-            popup.setAnchorY(event.getSceneY() - 20);
+
+            popup.setAnchorX(event.getSceneX() + 10);
+            popup.setAnchorY(event.getSceneY() - 30);
         });
         this.songSlider.setOnMouseEntered(event -> popup.show(songSlider, event.getScreenX()-5, event.getScreenY()-20));
         this.songSlider.setOnMouseExited(event -> popup.hide());
 
-        this.songSlider.setPadding(new Insets(5));
+        //Bind the progress bar to the song slider
+        this.songBar.progressProperty().bind(
+                this.songSlider.valueProperty().divide(this.songSlider.maxProperty())
+        );
+
+        this.songSliderBar = new StackPane();
+        this.songSliderBar.getChildren().addAll(songBar, songSlider);
+        this.songSliderBar.setAlignment(Pos.CENTER);
     }
 
     //Set initial cover
@@ -390,11 +438,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     //Update volume slider
     private void updateVolumeSlider(){
-        double min = this.musicPlayer.getMinVolume();
-        double max = this.musicPlayer.getMaxVolume();
-        this.volumeSlider.setMin(min);
-        this.volumeSlider.setMax(max);
-        this.volumeSlider.setValue(max);
+        this.volumeSlider.setMin(0);
+        this.volumeSlider.setMax(100);
+        this.volumeSlider.setValue(50);
     }
 
     //Update song slider

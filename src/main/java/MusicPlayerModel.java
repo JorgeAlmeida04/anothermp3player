@@ -182,20 +182,43 @@ public class MusicPlayerModel extends Observable {
     }
 
     //Changes the clips loudness
-    public void volumeChange(double decibels){
-        if(hasClip()){
+    public void volumeChange(double sliderValue) {
+        if (hasClip()) {
             FloatControl gainControl = (FloatControl) this.clip.getControl(FloatControl.Type.MASTER_GAIN);
-            float min = gainControl.getMinimum();
-            float max = gainControl.getMaximum();
 
-            if (decibels < min) {
-                decibels = min;
-            } else if (decibels > max) {
-                decibels = max;
+            //Convert Slider (0-100) to a Percentage (0.0 to 1.0)
+            float volumePercentage = (float) sliderValue / 100.0f;
+
+            //Handle 0 separately (Math.log10(0) is -Infinity)
+            if (volumePercentage <= 0.0001f) {
+                // Mute completely
+                gainControl.setValue(gainControl.getMinimum());
+                return;
             }
-            
-            gainControl.setValue((float) decibels);
+
+            //Convert Percentage to Decibels (Logarithmic Scale)
+            // Formula: 20 * log10(amplitude)
+            float dB = getDB(volumePercentage, gainControl);
+
+            gainControl.setValue(dB);
         }
+    }
+
+    private static float getDB(float volumePercentage, FloatControl gainControl) {
+        float dB = (float) (Math.log10(volumePercentage) * 20.0);
+
+        // Clamp the value just in case (optional but safe)
+        // Usually min is -80.0dB and max is 6.0dB
+        float min = gainControl.getMinimum();
+        float max = gainControl.getMaximum();
+
+        // Ensure we don't go below the hardware minimum
+        if (dB < min) dB = min;
+
+        // Ensure we don't exceed the hardware maximum (usually +6dB, but 0dB is safer for "100%")
+        if (dB > max) dB = max;
+
+        return dB;
     }
 
     //Rewinds the clip to the start

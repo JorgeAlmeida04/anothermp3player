@@ -66,3 +66,113 @@
 .label{
     -fx-text-fill: white;
 }
+
+.song-slider {
+    -fx-background-color: transparent;
+    -fx-padding: 0; /* Critical: Removes default padding so it overlaps perfectly */
+}
+
+/* Hide the slider track completely so the Progress Bar shows through */
+.song-slider .track {
+    -fx-background-color: transparent;
+    -fx-pref-height: 4px; /* Defined height */
+}
+
+/* The Knob */
+.song-slider .thumb {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 50%;
+    -fx-pref-width: 12px;
+    -fx-pref-height: 12px;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 5, 0, 0, 1);
+}
+
+.song-slider:hover .thumb {
+    -fx-pref-width: 16px;
+    -fx-pref-height: 16px;
+}
+
+/* --- 2. The Progress Bar (Background / Visuals) --- */
+.song-bar {
+    /* FIX: Don't make the whole container red. Make it transparent. */
+    -fx-background-color: transparent;
+
+    /* FIX: Force the same height as the slider track */
+    -fx-pref-height: 4px;
+    -fx-min-height: 4px;
+    -fx-max-height: 4px;
+}
+
+/* The Empty Part (Grey background) */
+.song-bar .track {
+    -fx-background-color: #4d4d4d;
+    -fx-background-radius: 5px;
+
+    /* FIX: Ensure no internal spacing shrinks the bar */
+    -fx-background-insets: 0;
+}
+
+/* The Filled Part (Red progress) */
+.song-bar .bar {
+    -fx-background-color: #ff0000;
+    -fx-background-radius: 5px;
+
+    /* FIX: Ensure the red bar fills the height completely */
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* --- Volume Slider (The Interactable Part) --- */
+.volume-slider {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-min-height: 14px;
+    -fx-max-height: 14px;
+}
+
+/* Hide the slider track (we use the progress bar track instead) */
+.volume-slider .track {
+    -fx-visibility: hidden;
+    -fx-background-color: transparent;
+}
+
+/* The Thumb (Circle) */
+.volume-slider .thumb {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 50%;
+    -fx-pref-width: 14px;
+    -fx-pref-height: 14px;
+
+    /* Ensure the thumb is centered on the touch point */
+    -fx-background-insets: 0;
+
+    /* Center the thumb visually */
+    -fx-translate-y: 0;
+
+    /* Visual shadow */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 3, 0, 0, 1);
+}
+
+/* --- Volume Bar --- */
+.volume-bar {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-pref-height: 10px;
+    -fx-min-height: 10px;
+    -fx-max-height: 10px;
+}
+
+.volume-bar .track {
+    -fx-background-color: #4d4d4d; /* Dark Grey Background */
+    -fx-background-radius: 5px;
+    -fx-background-insets: 0 7px 0 7px;
+}
+
+.volume-bar .bar {
+    -fx-background-color: #0078d7;
+    -fx-background-radius: 5px;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
