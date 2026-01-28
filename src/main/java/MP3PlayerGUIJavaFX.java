@@ -146,6 +146,17 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.bottomLayout.add(songSliderBar, 0, 0);
         this.bottomLayout.add(playbackBox,0,1);
 
+        this.bottomLayout.setOnMouseClicked(event -> {
+            if(this.songCover.getFitHeight() == 400) {
+                this.songCover.setFitHeight(200);
+                this.songCover.setFitWidth(200);
+            }else{
+                this.songCover.setFitHeight(400);
+                this.songCover.setFitWidth(400);
+            }
+            //this.songCover.setVisible(!this.songCover.isVisible());
+        });
+
     }
 
     private void addPlaybackButtons() {
@@ -184,6 +195,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                     this.window.setTitle(song.getName() + " ~ Another MP3 Player");
                     updateVolumeSlider();
                     updateSongSlider();
+                    updateSongLabels();
                     if (wasRunning) {
                         this.musicPlayer.start();
                         setImage(this.playPauseButton, "new-pause.png");
@@ -263,7 +275,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.volumeBar.getStyleClass().add("volume-bar");
         this.volumeBar.setMaxWidth(Double.MAX_VALUE);
 
-        this.volumeSlider = new Slider(0, 1000, 50);
+        this.volumeSlider = new Slider(0, 100, 10);
         this.volumeSlider.setOrientation(Orientation.HORIZONTAL);
         this.volumeSlider.setMaxHeight(80);
         this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
@@ -440,7 +452,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private void updateVolumeSlider(){
         this.volumeSlider.setMin(0);
         this.volumeSlider.setMax(100);
-        this.volumeSlider.setValue(50);
+        this.volumeSlider.setValue(10);
     }
 
     //Update song slider
