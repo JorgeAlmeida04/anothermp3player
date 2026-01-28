@@ -1,13 +1,66 @@
 .root{
-    -fx-background-color: linear-gradient(from 25% 25% to 100% 100%, #0F2027, #203A43, #2C5364);
+    -fx-background-color: linear-gradient(to top, #000000 40%, #0C0F0C 70%, #1a1512 90%,  #201a16 100%);
+}
+
+.bottom-layout{
+    -fx-background-color: #212121;
+}
+
+.button{
+    -fx-background-color: transparent;
+}
+
+.button:hover{
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-background-radius: 100px;
 }
 
 .menu-bar{
-    -fx-background-color: linear-gradient(from 25% 25% to 100% 100%, #0F2027, #203A43, #2C5364);
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
 }
 
-.menu-item{
-    -fx-background-color: #0F2027;
+.menu-bar .menu-button{
+    -fx-background-color: transparent;
+}
+
+.menu-bar .label{
+    -fx-text-fill: #e0e0e0;
+    -fx-font-family: "Comic Sans MS", cursive;
+    -fx-font-weight: bold;
+}
+
+.menu-bar .menu-button:hover,
+.menu-bar .menu-button:showing {
+    -fx-background-color: rgba(255, 255, 255, 0.1); /* Slight white tint */
+    -fx-background-radius: 4px;
+}
+
+/* Target the dropdown container */
+.context-menu {
+    -fx-background-color: rgba(30, 25, 22, 0.95); /* Dark brownish-black, 95% opacity */
+    -fx-background-radius: 8px; /* Rounded corners */
+    -fx-border-color: rgba(255, 255, 255, 0.1); /* Subtle border for definition */
+    -fx-border-radius: 8px;
+    -fx-padding: 4px 0px; /* Vertical spacing inside the box */
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 10, 0, 0, 4); /* Shadow for depth */
+}
+
+/* Target the individual items inside the dropdown */
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 8px 12px; /* Make items comfortable to click */
+}
+
+/* Text color for the menu items */
+.menu-item .label {
+    -fx-text-fill: #e0e0e0; /* Light grey text */
+}
+
+/* Hover effect for items in the dropdown */
+.menu-item:focused {
+    -fx-background-color: rgba(255, 255, 255, 0.1); /* Highlight color */
+    -fx-text-fill: white;
 }
 
 .label{

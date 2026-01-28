@@ -86,6 +86,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     private void initBottomLayout() throws FileNotFoundException {
         this.bottomLayout = new GridPane();
+        this.bottomLayout.getStyleClass().add("bottom-layout");
         this.bottomLayout.setHgap(1);
         //this.bottomLayout.gridLinesVisibleProperty().setValue(true);
         this.bottomLayout.setMaxWidth(Double.MAX_VALUE);
@@ -440,6 +441,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         layout = new BorderPane();
         layout.setBottom(this.bottomLayout);
+        this.bottomLayout.setVisible(false);
         layout.setTop(this.menuBar);
         layout.setCenter(this.songCover);
 
@@ -459,11 +461,13 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             setImage(playPauseButton, "new-play.png");
         }
         if(this.musicPlayer.hasClip()){
+            this.bottomLayout.setVisible(true);
             if(this.musicPlayer.atEnd()){
                 if(this.musicPlayer.hasPlaylist()){
                     loadPlaylistSong();
                 }else{
-                    setImage(playPauseButton, "new-play.png");
+                    setImage(playPauseButton, "miku.jpg");
+                    this.bottomLayout.setVisible(false);
                 }
             }
             //Update slider based on current song position
