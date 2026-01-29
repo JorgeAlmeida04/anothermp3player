@@ -263,6 +263,16 @@ public class MusicPlayerModel extends Observable {
         this.playlistPosition = 0;
     }
 
+    //Gets the playlist
+    public List<File> getPlaylist(){
+        return this.playlist;
+    }
+
+    //Gets the playlist position
+    public int  getPlaylistPosition(){
+        return this.playlistPosition;
+    }
+
     //Gets the minimum decibel volume of the clip
     public double getMinVolume(){
         FloatControl gainControl = (FloatControl) this.clip.getControl(FloatControl.Type.MASTER_GAIN);

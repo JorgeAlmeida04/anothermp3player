@@ -24,6 +24,7 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
 import java.awt.*;
@@ -65,7 +66,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     //Uploaded song file
     private File songFile;
-    private List<File> playlistSongs;
 
     //Global variables for the navigation menus
     private MenuBar menuBar;
@@ -82,8 +82,13 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private Label songArtist;
     private ImageView songCover;
 
-    //Layout for the center
-    private VBox centerHBox;
+    //Container for the song labels
+    private VBox labelVBox;
+
+    //Container for the center of the main stage
+    private GridPane coverQueueContainer; //This grid will contain the album cover and the ListView os the queue
+    private TableView<String> queueLyricsTable; //This table will have a view for the queue and the lyrics of the song(switchable)
+
 
     //Main Stage variables
     private Stage window;
@@ -94,7 +99,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.bottomLayout = new GridPane();
         this.bottomLayout.getStyleClass().add("bottom-layout");
         this.bottomLayout.setHgap(1);
-        //this.bottomLayout.gridLinesVisibleProperty().setValue(true);
         this.bottomLayout.setMaxWidth(Double.MAX_VALUE);
         this.bottomLayout.setAlignment(Pos.CENTER);
         this.bottomLayout.setPadding(new Insets(5, 5, 5, 5));
@@ -140,7 +144,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         //Config song info
         initSongInfoVisualizer();
 
-        this.playbackBox.add(centerHBox, 1, 0);
+        this.playbackBox.add(labelVBox, 1, 0);
         this.playbackBox.add(volumeSliderBar, 2, 0);
 
         this.bottomLayout.add(songSliderBar, 0, 0);
@@ -154,7 +158,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                 this.songCover.setFitHeight(400);
                 this.songCover.setFitWidth(400);
             }
-            //this.songCover.setVisible(!this.songCover.isVisible());
         });
 
     }
@@ -243,7 +246,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         loadPlaylist = new MenuItem("Load Playlist");
         loadPlaylist.setOnAction(e -> {
-            this.playlistSongs = multipleFileSelection();
+            multipleFileSelection();
             System.out.println("Loading playlist");
         });
 
@@ -252,10 +255,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     }
 
     private void initSongInfoVisualizer() throws FileNotFoundException {
-        centerHBox = new VBox();
-        centerHBox.setSpacing(10);
-        centerHBox.setPadding(new Insets(10, 10, 0, 10));
-        centerHBox.setAlignment(Pos.CENTER);
+        labelVBox = new VBox();
+        labelVBox.setSpacing(10);
+        labelVBox.setPadding(new Insets(10, 10, 0, 10));
+        labelVBox.setAlignment(Pos.CENTER);
 
         //Set up song title
         songTitle = new Label("Song Title");
@@ -267,7 +270,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         setSongCover();
 
-        centerHBox.getChildren().addAll(songTitle, songArtist);
+        labelVBox.getChildren().addAll(songTitle, songArtist);
     }
 
     private void initVolumeSlider(){
@@ -491,6 +494,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         t.play();
 
         window = stage;
+        window.initStyle(StageStyle.UNDECORATED);
         window.setTitle("No Song Selected ~ Another MP3 Player");
         window.setOnCloseRequest(e -> {
             System.out.println("Closing");
