@@ -4,7 +4,6 @@ import javafx.application.Application;
 import javafx.geometry.*;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.chart.NumberAxis;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -14,28 +13,24 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.paint.CycleMethod;
-import javafx.scene.paint.RadialGradient;
-import javafx.scene.paint.Stop;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
-import java.awt.*;
+import net.yetihafen.javafx.customcaption.CustomCaption;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
+import java.util.function.Function;
 
 public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
@@ -286,6 +281,8 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         });
         this.volumeSlider.getStyleClass().add("volume-slider");
 
+        setupSliderPopup(this.volumeSlider, value -> String.format("%.0f%%", value));
+
         // Binds Progress = SliderValue / SliderMax
         this.volumeBar.progressProperty().bind(
                 this.volumeSlider.valueProperty().divide(this.volumeSlider.maxProperty())
@@ -309,43 +306,19 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.songSlider.setOrientation(Orientation.HORIZONTAL);
         this.songSlider.getStyleClass().add("song-slider");
 
-        Label label = new Label();
-        Popup popup = new Popup();
-        popup.getContent().add(label);
+        setupSliderPopup(this.songSlider, hoverValue -> {
+            if (this.songSlider.getMax() > 0) {
+                double timeUnit = 44231.5636364; // Your specific unit
+                int minutes = (int) (hoverValue / timeUnit) / 60;
+                int seconds = (int) (hoverValue / timeUnit) % 60;
+                return String.format("%d:%02d", minutes, seconds);
+            }
+            return "0:00";
+        });
 
         this.songSlider.setOnMouseClicked(event -> {
             this.musicPlayer.setSongPosition(((int) this.songSlider.getValue()));
         });
-        this.songSlider.setOnMouseMoved(event -> {
-            double mouseX = event.getX();
-            double totalWidth = songSlider.getWidth();
-
-            if (totalWidth <= 0) return;
-
-            double percentage = mouseX / totalWidth;
-
-            percentage = Math.max(0, Math.min(1, percentage));
-
-            // Convert percentage to actual Value
-            double min = songSlider.getMin();
-            double max = songSlider.getMax();
-            double hoverValue = min + (percentage * (max - min));
-
-            if (max > 0) {
-                double timeUnit = 44231.5636364; // Your specific unit
-                int minutes = (int) (hoverValue / timeUnit) / 60;
-                int seconds = (int) (hoverValue % timeUnit) % 60; // Logic might need adjustment based on your unit
-
-                label.setText(String.format("%d:%02d", minutes, seconds));
-            } else {
-                label.setText("0:00");
-            }
-
-            popup.setAnchorX(event.getSceneX() + 10);
-            popup.setAnchorY(event.getSceneY() - 30);
-        });
-        this.songSlider.setOnMouseEntered(event -> popup.show(songSlider, event.getScreenX()-5, event.getScreenY()-20));
-        this.songSlider.setOnMouseExited(event -> popup.hide());
 
         //Bind the progress bar to the song slider
         this.songBar.progressProperty().bind(
@@ -355,6 +328,34 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.songSliderBar = new StackPane();
         this.songSliderBar.getChildren().addAll(songBar, songSlider);
         this.songSliderBar.setAlignment(Pos.CENTER);
+    }
+
+    private void setupSliderPopup(Slider slider, Function<Double, String> formatter) {
+        Label label = new Label();
+        Popup popup = new Popup();
+        popup.getContent().add(label);
+
+        slider.setOnMouseMoved(event -> {
+            double mouseX = event.getX();
+            double totalWidth = slider.getWidth();
+
+            if (totalWidth <= 0) return;
+
+            double percentage = mouseX / totalWidth;
+            percentage = Math.max(0, Math.min(1, percentage));
+
+            double min = slider.getMin();
+            double max = slider.getMax();
+            double hoverValue = min + (percentage * (max - min));
+
+            label.setText(formatter.apply(hoverValue));
+
+            popup.setAnchorX(event.getScreenX() + 10);
+            popup.setAnchorY(event.getScreenY() - 30);
+        });
+
+        slider.setOnMouseEntered(event -> popup.show(slider, event.getScreenX() + 10, event.getScreenY() - 30));
+        slider.setOnMouseExited(event -> popup.hide());
     }
 
     //Set initial cover
@@ -388,7 +389,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.songFile = fileChooser.showOpenDialog(window);
     }
 
-    private List<File> multipleFileSelection(){
+    private void multipleFileSelection(){
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Select a mp3 file");
         fileChooser.setInitialDirectory(new File(System.getProperty("user.home") + "\\Music"));
@@ -404,7 +405,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             loadPlaylistSong();
         }
 
-        return null;
     }
 
     //Loads a new song. Updates the song slider and volume slider accordingly
@@ -494,7 +494,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         t.play();
 
         window = stage;
-        window.initStyle(StageStyle.UNDECORATED);
         window.setTitle("No Song Selected ~ Another MP3 Player");
         window.setOnCloseRequest(e -> {
             System.out.println("Closing");
@@ -512,6 +511,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         window.setScene(scene);
         window.show();
+
+        //CustomCaption.setCaptionColor(this.window, Color.BLACK);
+        CustomCaption.setImmersiveDarkMode(this.window, true);
     }
 
     @Override
