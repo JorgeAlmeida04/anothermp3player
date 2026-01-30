@@ -1,3 +1,7 @@
+import eu.iamgio.animated.binding.Animated;
+import eu.iamgio.animated.binding.AnimationSettings;
+import eu.iamgio.animated.binding.presets.AnimatedScale;
+import eu.iamgio.animated.binding.property.animation.AnimationProperty;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
@@ -146,12 +150,12 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.bottomLayout.add(playbackBox,0,1);
 
         this.bottomLayout.setOnMouseClicked(event -> {
-            if(this.songCover.getFitHeight() == 400) {
-                this.songCover.setFitHeight(200);
-                this.songCover.setFitWidth(200);
+            if(this.songCover.getScaleX() == 1 && this.songCover.getScaleY() == 1) {
+                this.songCover.setScaleX(0.5);
+                this.songCover.setScaleY(0.5);
             }else{
-                this.songCover.setFitHeight(400);
-                this.songCover.setFitWidth(400);
+                this.songCover.setScaleX(1);
+                this.songCover.setScaleY(1);
             }
         });
 
@@ -500,11 +504,13 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             window.close();
         });
 
+        Animated animatedCover = new Animated(this.songCover, new AnimatedScale());
+
         layout = new BorderPane();
         layout.setBottom(this.bottomLayout);
         this.bottomLayout.setVisible(false);
         layout.setTop(this.menuBar);
-        layout.setCenter(this.songCover);
+        layout.setCenter(animatedCover);
 
         scene = new Scene(layout, 1260, 720);
         scene.getStylesheets().add("Default_Theme.css");
