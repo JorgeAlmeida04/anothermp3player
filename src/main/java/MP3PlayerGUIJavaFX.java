@@ -38,7 +38,7 @@ import java.util.function.Function;
 
 public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
-    private static final double DEFAULT_UPDATE_DURATION = 2.0;
+    private static final double DEFAULT_UPDATE_DURATION = 0.1;
 
     private MusicPlayerModel musicPlayer;
 
@@ -56,6 +56,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private Slider songSlider;
     private ProgressBar songBar;
     private StackPane songSliderBar;
+    private boolean isDragging = false;
 
     //Bottom container (it will have the buttons container and the song slider)
     private GridPane bottomLayout;
@@ -320,18 +321,44 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             return "0:00";
         });
 
-        this.songSlider.setOnMouseClicked(event -> {
-            this.musicPlayer.setSongPosition(((int) this.songSlider.getValue()));
+        this.songSlider.setOnMousePressed(event -> {
+            this.isDragging = true;
         });
 
-        //Bind the progress bar to the song slider
-        this.songBar.progressProperty().bind(
-                this.songSlider.valueProperty().divide(this.songSlider.maxProperty())
-        );
+        this.songSlider.setOnMouseReleased(event -> {
+            this.musicPlayer.setSongPosition(((int) this.songSlider.getValue()));
+            this.isDragging = false;
+        });
+
+        // Create an Animated wrapper for the progress bar with a 1-second smoothing duration
+        Animated animatedSongBar = new Animated(this.songBar, AnimationProperty.of(this.songBar.progressProperty()))
+                .custom(settings -> settings.withDuration(Duration.millis(100)));
+
+        // Manually update the progress bar when the slider value changes to trigger the animation
+        this.songSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (this.songSlider.getMax() > 0) {
+                this.songBar.setProgress(newValue.doubleValue() / this.songSlider.getMax());
+            } else {
+                this.songBar.setProgress(0);
+            }
+        });
+
+        // Ensure the progress is correct if the song length (max value) changes
+        this.songSlider.maxProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue.doubleValue() > 0) {
+                this.songBar.setProgress(this.songSlider.getValue() / newValue.doubleValue());
+            } else {
+                this.songBar.setProgress(0);
+            }
+        });
 
         this.songSliderBar = new StackPane();
-        this.songSliderBar.getChildren().addAll(songBar, songSlider);
+        this.songSliderBar.getChildren().addAll(animatedSongBar, songSlider);
         this.songSliderBar.setAlignment(Pos.CENTER);
+
+        // Bind the progress bar width to the container width to ensure it fills the space
+        // This is necessary because the Animated wrapper interrupts standard layout resizing
+        this.songBar.prefWidthProperty().bind(this.songSliderBar.widthProperty());
     }
 
     private void setupSliderPopup(Slider slider, Function<Double, String> formatter) {
@@ -536,12 +563,13 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                 if(this.musicPlayer.hasPlaylist()){
                     loadPlaylistSong();
                 }else{
-                    setImage(playPauseButton, "miku.jpg");
                     this.bottomLayout.setVisible(false);
                 }
             }
             //Update slider based on current song position
-            this.songSlider.setValue(this.musicPlayer.getClipCurrentValue());
+            if (!this.isDragging) {
+                this.songSlider.setValue(this.musicPlayer.getClipCurrentValue());
+            }
         }
     }
 }
