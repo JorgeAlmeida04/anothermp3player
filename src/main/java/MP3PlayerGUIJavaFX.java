@@ -345,6 +345,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     private void initQueueView() {
         this.queue = new ListView<>();
+        this.queue.prefHeightProperty().bind(this.songCover.fitHeightProperty());
         this.queue.getStyleClass().add("queue");
         this.queue.setCellFactory(param -> new QueueCell());
         this.queue.setOnMouseClicked(event -> {
@@ -464,8 +465,8 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         Image image = new Image(inputStream);
         this.songCover = new ImageView(image);
         this.songCover.setPreserveRatio(true);
-        this.songCover.fitWidthProperty().bind(this.layout.widthProperty().multiply(0.625));
-        this.songCover.fitHeightProperty().bind(this.layout.heightProperty().multiply(0.625));
+        this.songCover.fitWidthProperty().bind(this.layout.widthProperty().multiply(0.7));
+        this.songCover.fitHeightProperty().bind(this.layout.heightProperty().multiply(0.7));
         this.songCover.setOnMouseClicked(event -> {
             if (this.musicPlayer.hasClip()) {
                 if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
@@ -541,11 +542,16 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     private void loadPlaylistSong(){
         boolean wasRunning = false;
+        File song = null;
+
         if(this.musicPlayer.hasClip() && this.musicPlayer.isRunning()){
             this.musicPlayer.stop();
             wasRunning = true;
+            song = this.musicPlayer.loadNextSong();
+        } else {
+            song = this.musicPlayer.initPlaylist();
         }
-        File song = this.musicPlayer.loadNextSong();
+
         if(song != null && this.musicPlayer.hasClip()) {
             this.window.setTitle(song.getName() + "~ Another MP3 Player");
             updateSongLabels();
@@ -577,7 +583,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             protected Void call() throws Exception {
                 for(int i=0; i<playlist.size(); i++){
                     File file = playlist.get(i);
-                    MusicPlayerModel.QueueSongData data = musicPlayer.getQueueData(file);
+                    QueueSongData data = musicPlayer.getQueueData(file);
 
                     Image img = null;
                     if(data.imageData != null){

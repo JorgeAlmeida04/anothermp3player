@@ -139,6 +139,16 @@ public class MusicPlayerModel extends Observable {
         return new AudioInputStream(new ByteArrayInputStream(audioData), format, audioData.length / format.getFrameSize());
     }
 
+    //Starts the playlist
+    public File initPlaylist(){
+        if(this.playlist != null && !this.playlist.isEmpty()){
+            File song = this.playlist.get(this.playlistPosition);
+            changeSong(song);
+            return song;
+        }
+        return null;
+    }
+
     //Loads the next song in the playlist
     public File loadNextSong(){
         if(this.playlist != null && !this.playlist.isEmpty()){
@@ -347,20 +357,6 @@ public class MusicPlayerModel extends Observable {
     public void announceChanges(){
         setChanged();
         notifyObservers();
-    }
-
-    public static class QueueSongData {
-        public String title;
-        public String artist;
-        public String duration;
-        public byte[] imageData;
-
-        public QueueSongData(String title, String artist, String duration, byte[] imageData) {
-            this.title = title;
-            this.artist = artist;
-            this.duration = duration;
-            this.imageData = imageData;
-        }
     }
 
     public QueueSongData getQueueData(File file) {
