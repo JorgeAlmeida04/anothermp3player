@@ -257,10 +257,37 @@ public class MusicPlayerModel extends Observable {
         return  this.currentAlbumImage;
     }
 
+    //Extracts the songs metadata for the queue
+    public String[] getSongMetadata(File file){
+        String title = file.getName();
+        String artist = "Unknown Artist";
+        try{
+            Mp3File mp3File = new Mp3File(file);
+            if(mp3File.hasId3v2Tag()){
+                ID3v2 id3v2Tag = mp3File.getId3v2Tag();
+                if (id3v2Tag.getTitle() != null) title = id3v2Tag.getTitle();
+                if (id3v2Tag.getArtist() != null) artist = id3v2Tag.getArtist();
+            } else if (mp3File.hasId3v1Tag()){
+                ID3v1 id3v1Tag = mp3File.getId3v1Tag();
+                if (id3v1Tag.getTitle() != null) title = id3v1Tag.getTitle();
+                if (id3v1Tag.getArtist() != null) artist = id3v1Tag.getArtist();
+            }
+        }catch(Exception e){
+            //Fallback to defaults
+            e.printStackTrace();
+        }
+        return new String[]{title, artist};
+    }
+
     //Sets the playlist to the new list
     public void setPlaylist(List<File> playlist){
         this.playlist = playlist;
         this.playlistPosition = 0;
+    }
+
+    //Changes the playlist song (triggered by the user)
+    public void setPlaylistPosition(int position){
+        this.playlistPosition = position;
     }
 
     //Gets the playlist
@@ -320,5 +347,48 @@ public class MusicPlayerModel extends Observable {
     public void announceChanges(){
         setChanged();
         notifyObservers();
+    }
+
+    public static class QueueSongData {
+        public String title;
+        public String artist;
+        public String duration;
+        public byte[] imageData;
+
+        public QueueSongData(String title, String artist, String duration, byte[] imageData) {
+            this.title = title;
+            this.artist = artist;
+            this.duration = duration;
+            this.imageData = imageData;
+        }
+    }
+
+    public QueueSongData getQueueData(File file) {
+        String title = file.getName();
+        String artist = "Unknown Artist";
+        String duration = "0:00";
+        byte[] imageData = null;
+
+        try {
+            Mp3File mp3File = new Mp3File(file);
+            long seconds = mp3File.getLengthInSeconds();
+            long min = seconds / 60;
+            long sec = seconds % 60;
+            duration = String.format("%d:%02d", min, sec);
+
+            if (mp3File.hasId3v2Tag()) {
+                ID3v2 id3v2Tag = mp3File.getId3v2Tag();
+                if (id3v2Tag.getTitle() != null) title = id3v2Tag.getTitle();
+                if (id3v2Tag.getArtist() != null) artist = id3v2Tag.getArtist();
+                imageData = id3v2Tag.getAlbumImage();
+            } else if (mp3File.hasId3v1Tag()) {
+                ID3v1 id3v1Tag = mp3File.getId3v1Tag();
+                if (id3v1Tag.getTitle() != null) title = id3v1Tag.getTitle();
+                if (id3v1Tag.getArtist() != null) artist = id3v1Tag.getArtist();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return new QueueSongData(title, artist, duration, imageData);
     }
 }
