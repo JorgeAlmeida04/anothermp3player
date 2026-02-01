@@ -1,5 +1,24 @@
 .root{
-    -fx-background-color: linear-gradient(to top, #000000 40%, #0C0F0C 70%, #1a1512 90%,  #201a16 100%);
+    -fx-background-color: linear-gradient(
+            from 0% 0% to 0% 100%,
+
+                /* The Header Glow */
+            #333333 0%,
+            #2E262E 7%,        /* Smoother bridge between Grey and Purple */
+
+                /* The Ambient Color (Purple) */
+            #291829 15%,
+            #241624 22%,       /* Micro-step to darken the purple naturally */
+
+                /* The Transition to Dark */
+            #1D141D 30%,       /* Desaturating before hitting grey */
+            #121212 40%,       /* Your original anchor point */
+
+                /* The Deep Fade (The "Long Tail") */
+            #0A0A0A 55%,       /* Softening the drop to black */
+            #050505 75%,       /* Almost black, keeping deep depth */
+            #000000 100%       /* True Black */
+    );
 }
 
 .bottom-layout{

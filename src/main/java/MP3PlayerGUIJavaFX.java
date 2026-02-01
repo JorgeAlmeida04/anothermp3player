@@ -7,6 +7,7 @@ import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.*;
 import javafx.geometry.Insets;
+import javafx.scene.CacheHint;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
@@ -102,7 +103,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.bottomLayout.setHgap(1);
         this.bottomLayout.setMaxWidth(Double.MAX_VALUE);
         this.bottomLayout.setAlignment(Pos.CENTER);
-        this.bottomLayout.setPadding(new Insets(5, 5, 5, 5));
+        this.bottomLayout.setPadding(new Insets(0, 5, 5, 5));
 
         //Configure the constraints for the columns on the bottomLayout grid
         ColumnConstraints column1 = new ColumnConstraints();
