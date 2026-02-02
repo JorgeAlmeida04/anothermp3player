@@ -21,6 +21,10 @@
     );
 }
 
+.cover-queue-container {
+    -fx-background-color: #121212; /* Solid dark background to prevent transparency */
+}
+
 .home-page-load-songs-button{
     -fx-text-fill: #e0e0e0;
     -fx-font-family: "Comic Sans MS", cursive;
@@ -312,6 +316,54 @@
 
 .queue .scroll-bar .increment-arrow,
 .queue .scroll-bar .decrement-arrow {
+    -fx-shape: " ";
+    -fx-padding: 0;
+}
+
+/* --- Modern ScrollPane for Home Page --- */
+
+.modern-scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.modern-scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.modern-scroll-pane .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8px;
+}
+
+.modern-scroll-pane .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-height: 0px; /* Hide horizontal scrollbar */
+}
+
+.modern-scroll-pane .scroll-bar .track {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.modern-scroll-pane .scroll-bar .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+    -fx-background-radius: 4px;
+}
+
+.modern-scroll-pane .scroll-bar .thumb:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.4);
+}
+
+.modern-scroll-pane .scroll-bar .increment-button,
+.modern-scroll-pane .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+}
+
+.modern-scroll-pane .scroll-bar .increment-arrow,
+.modern-scroll-pane .scroll-bar .decrement-arrow {
     -fx-shape: " ";
     -fx-padding: 0;
 }

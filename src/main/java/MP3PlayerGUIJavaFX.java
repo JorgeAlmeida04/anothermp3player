@@ -1,6 +1,8 @@
 import eu.iamgio.animated.binding.Animated;
 import eu.iamgio.animated.binding.presets.AnimatedScale;
+import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -94,6 +96,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     private FlowPane mainPage; //THis is supposed to be the home page
     private StackPane homeNowPlayingContainer; //THis will contain the now playing (coverQueueContainer) and the home page (mainPage) layouts
+    private boolean isOpen = false;
 
     //Main Stage variables
     private Stage window;
@@ -156,13 +159,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.bottomLayout.add(playbackBox,0,1);
 
         this.bottomLayout.setOnMouseClicked(event -> {
-            if(this.songCover.getScaleX() == 1 && this.songCover.getScaleY() == 1) {
-                this.songCover.setScaleX(0.5);
-                this.songCover.setScaleY(0.5);
-            }else{
-                this.songCover.setScaleX(1);
-                this.songCover.setScaleY(1);
-            }
+            toggleView(this.coverQueueContainer);
         });
 
     }
@@ -175,14 +172,18 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         loadSongsButton.getStyleClass().add("home-page-load-songs-button");
         loadSongsButton.setOnMouseClicked(event -> {
             multipleFileSelection();
-            this.mainPage.getChildren().clear();
-            fillTheHomePage();
+            if(!this.playlist.isEmpty()){
+                this.mainPage.getChildren().clear();
+                fillTheHomePage();
+            }
         });
 
         this.mainPage.getChildren().add(loadSongsButton);
     }
 
     private void fillTheHomePage(){
+        if(this.playlist == null) return;
+
         this.mainPage.setVgap(7);
 
         if(this.playlist.size() < 8){
@@ -201,7 +202,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         Task<Void> metadataTask = new Task<>() {
             @Override
             protected Void call() throws Exception {
-                for(File file : playlist){
+                for(int i = 0; i < playlist.size(); i++){
+                    File file = playlist.get(i);
+                    int index = i;
                     QueueSongData data = musicPlayer.getQueueData(file);
 
                     Image img = null;
@@ -213,7 +216,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                     }
 
                     VBox vbox = new VBox();
-                    //vbox.setVgrow(vbox, Priority.ALWAYS);
                     vbox.setAlignment(Pos.CENTER);
                     vbox.setPadding(new Insets(5, 5, 5, 5));
 
@@ -229,6 +231,23 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                     vbox.getChildren().addAll(imageView, title, artist);
 
                     Platform.runLater(() -> {
+                        vbox.setOnMouseClicked(event -> {
+                            if(musicPlayer.isRunning()){
+                                musicPlayer.stop();
+                            }
+                            musicPlayer.setPlaylist(playlist);
+                            musicPlayer.setPlaylistPosition(index);
+                            musicPlayer.changeSong(playlist.get(index));
+                            loadQueueView();
+
+                            window.setTitle(playlist.get(index).getName() + " ~ Another MP3 Player");
+                            updateVolumeSlider();
+                            updateSongSlider();
+                            updateSongLabels();
+
+                            musicPlayer.start();
+                            setImage(playPauseButton, "new-pause.png");
+                        });
                         mainPage.getChildren().add(vbox);
                     });
 
@@ -385,6 +404,11 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     private void initWindowCenter() throws FileNotFoundException {
         this.coverQueueContainer = new GridPane();
+        this.coverQueueContainer.getStyleClass().add("cover-queue-container");
+        this.coverQueueContainer.setVisible(false);
+        this.coverQueueContainer.setMouseTransparent(true);
+        this.coverQueueContainer.setManaged(false);
+        this.coverQueueContainer.setTranslateY(10000);
         this.coverQueueContainer.setVgap(1);
         this.coverQueueContainer.setMaxWidth(Double.MAX_VALUE);
         this.coverQueueContainer.setAlignment(Pos.CENTER);
@@ -715,6 +739,47 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         this.musicPlayer.announceChanges();
     }
 
+    private void toggleView(Region viewToAnimate){
+        boolean opening = !isOpen;
+
+        if(opening){
+            if(!this.homeNowPlayingContainer.getChildren().contains(viewToAnimate)){
+                this.homeNowPlayingContainer.getChildren().add(viewToAnimate);
+            }
+            viewToAnimate.setVisible(true);
+            viewToAnimate.setMouseTransparent(false);
+            viewToAnimate.setManaged(true);
+        }
+
+        //Prepare animation parameters
+        double endValue = opening ? 0 : this.layout.getHeight();
+
+        //Use a timeline for smooth animation
+        Timeline timeline = new Timeline();
+
+        //Animate the Y Translation
+        KeyValue kv = new KeyValue(
+                viewToAnimate.translateYProperty(),
+                endValue,
+                Interpolator.EASE_BOTH //Smooth start and end
+        );
+
+        KeyFrame kf = new KeyFrame(Duration.millis(150), kv);
+        timeline.getKeyFrames().addAll(kf);
+
+        timeline.setOnFinished(event -> {
+            if(!opening){
+                viewToAnimate.setVisible(false);
+                viewToAnimate.setMouseTransparent(true);
+                viewToAnimate.setManaged(false);
+                this.homeNowPlayingContainer.getChildren().remove(viewToAnimate);
+            }
+        });
+
+        timeline.play();
+        isOpen = opening;
+    }
+
     @Override
     public void init(){
         this.musicPlayer = new MusicPlayerModel();
@@ -726,17 +791,24 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         layout = new BorderPane();
         menuBar = new MenuBar();
 
+        window = stage;
+        window.setTitle("No Song Selected ~ Another MP3 Player");
+        window.setOnCloseRequest(e -> {
+            System.out.println("Closing");
+            window.close();
+        });
+
         //Top Bar Navigation
         addMenuBarItems();
+
+        //Bottom container config
+        initBottomLayout();
 
         //Center of the screen
         initWindowCenter();
 
         //Home page
         initHomePage();
-
-        //Bottom container config
-        initBottomLayout();
 
         //Starts a TimeLine that automatically updates the gui every second
         //This allows for the song slider to move the song's position
@@ -745,19 +817,26 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         t.setCycleCount(Timeline.INDEFINITE);
         t.play();
 
-        window = stage;
-        window.setTitle("No Song Selected ~ Another MP3 Player");
-        window.setOnCloseRequest(e -> {
-            System.out.println("Closing");
-            window.close();
-        });
-
-        layout.setBottom(this.bottomLayout);
+        this.layout.setBottom(this.bottomLayout);
         this.bottomLayout.setVisible(false);
-        layout.setTop(this.menuBar);
-        layout.setCenter(this.mainPage);
+        this.layout.setTop(this.menuBar);
 
-        scene = new Scene(layout, 1260, 720);
+        ScrollPane scrollPane = new ScrollPane(this.mainPage);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.getStyleClass().add("modern-scroll-pane");
+
+        // Ensure FlowPane fills the height to keep things centered when there are few items
+        this.mainPage.prefHeightProperty().bind(scrollPane.heightProperty().subtract(2));
+
+        this.homeNowPlayingContainer = new StackPane();
+        this.homeNowPlayingContainer.setAlignment(Pos.CENTER);
+        this.homeNowPlayingContainer.getChildren().add(scrollPane);
+
+        this.layout.setCenter(this.homeNowPlayingContainer);
+
+        scene = new Scene(this.layout, 1260, 720);
         scene.getStylesheets().add("Default_Theme.css");
 
         window.setScene(scene);
@@ -765,6 +844,12 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
         //CustomCaption.setCaptionColor(this.window, Color.BLACK);
         CustomCaption.setImmersiveDarkMode(this.window, true);
+
+        this.coverQueueContainer.setVisible(false);
+        this.coverQueueContainer.setMouseTransparent(true);
+        Platform.runLater(() -> {
+            this.coverQueueContainer.setTranslateY(2000);
+        });
     }
 
     @Override
