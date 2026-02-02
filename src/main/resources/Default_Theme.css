@@ -21,6 +21,15 @@
     );
 }
 
+.home-page-load-songs-button{
+    -fx-text-fill: #e0e0e0;
+    -fx-font-family: "Comic Sans MS", cursive;
+    -fx-font-weight: bold;
+
+    -fx-border-color: #e0e0e0;
+    -fx-border-radius: 15px;
+}
+
 .bottom-layout{
     -fx-background-color: #212121;
 }

@@ -92,6 +92,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private GridPane coverQueueContainer; //This grid will contain the album cover and the ListView os the queue
     private ListView<QueueItem> queue; //This table will have a view for the queue
 
+    private FlowPane mainPage; //THis is supposed to be the home page
+    private StackPane homeNowPlayingContainer; //THis will contain the now playing (coverQueueContainer) and the home page (mainPage) layouts
+
     //Main Stage variables
     private Stage window;
     private Scene scene;
@@ -162,6 +165,82 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             }
         });
 
+    }
+
+    private void initHomePage(){
+        this.mainPage = new FlowPane();
+        this.mainPage.setAlignment(Pos.CENTER);
+
+        Button loadSongsButton = new Button("Load Songs");
+        loadSongsButton.getStyleClass().add("home-page-load-songs-button");
+        loadSongsButton.setOnMouseClicked(event -> {
+            multipleFileSelection();
+            this.mainPage.getChildren().clear();
+            fillTheHomePage();
+        });
+
+        this.mainPage.getChildren().add(loadSongsButton);
+    }
+
+    private void fillTheHomePage(){
+        this.mainPage.setVgap(7);
+
+        if(this.playlist.size() < 8){
+            this.mainPage.setHgap(this.playlist.size());
+        }else{
+            this.mainPage.setHgap(this.playlist.size()/8);
+        }
+
+        this.mainPage.setAlignment(Pos.CENTER);
+        this.mainPage.setColumnHalignment(HPos.CENTER);
+        this.mainPage.setRowValignment(VPos.CENTER);
+        this.mainPage.setPadding(new Insets(5, 5, 5, 5));
+
+        //Background Task
+        //This task will retrieve the metadata from all the songs on the playlist
+        Task<Void> metadataTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                for(File file : playlist){
+                    QueueSongData data = musicPlayer.getQueueData(file);
+
+                    Image img = null;
+                    if(data.imageData != null){
+                        img = new Image(new ByteArrayInputStream(data.imageData), 100, 100, true, true);
+                    } else{
+                        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/generic-album-cover.jpeg");
+                        img = new Image(new ByteArrayInputStream(inputStream.readAllBytes()), 100, 100, true, true);
+                    }
+
+                    VBox vbox = new VBox();
+                    //vbox.setVgrow(vbox, Priority.ALWAYS);
+                    vbox.setAlignment(Pos.CENTER);
+                    vbox.setPadding(new Insets(5, 5, 5, 5));
+
+                    ImageView imageView = new ImageView();
+                    imageView.setImage(img);
+
+                    Label title = new Label();
+                    title.setText(data.title);
+
+                    Label artist = new Label();
+                    artist.setText(data.artist);
+
+                    vbox.getChildren().addAll(imageView, title, artist);
+
+                    Platform.runLater(() -> {
+                        mainPage.getChildren().add(vbox);
+                    });
+
+                    Thread.sleep(10);
+                }
+                return null;
+            }
+        };
+
+        Thread thread = new Thread(metadataTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void addPlaybackButtons() {
@@ -249,6 +328,11 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         loadPlaylist = new MenuItem("Load Playlist");
         loadPlaylist.setOnAction(e -> {
             multipleFileSelection();
+            if(this.playlist != null){
+                this.musicPlayer.setPlaylist(this.playlist);
+                loadPlaylistSong();
+                loadQueueView();
+            }
             System.out.println("Loading playlist");
         });
 
@@ -462,7 +546,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     //Set initial cover
     private void setSongCover() throws FileNotFoundException {
-        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/miku.jpg");
+        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/generic-album-cover.jpeg");
         Image image = new Image(inputStream);
         this.songCover = new ImageView(image);
         this.songCover.setPreserveRatio(true);
@@ -517,13 +601,6 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         );
 
         this.playlist = fileChooser.showOpenMultipleDialog(window);
-
-        if(this.playlist != null){
-            this.musicPlayer.setPlaylist(this.playlist);
-            loadPlaylistSong();
-            loadQueueView();
-        }
-
     }
 
     //Loads a new song. Updates the song slider and volume slider accordingly
@@ -655,6 +732,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         //Center of the screen
         initWindowCenter();
 
+        //Home page
+        initHomePage();
+
         //Bottom container config
         initBottomLayout();
 
@@ -675,7 +755,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         layout.setBottom(this.bottomLayout);
         this.bottomLayout.setVisible(false);
         layout.setTop(this.menuBar);
-        layout.setCenter(this.coverQueueContainer);
+        layout.setCenter(this.mainPage);
 
         scene = new Scene(layout, 1260, 720);
         scene.getStylesheets().add("Default_Theme.css");
