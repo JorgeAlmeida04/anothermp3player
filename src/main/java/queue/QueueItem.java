@@ -1,3 +1,5 @@
+package queue;
+
 import javafx.scene.image.Image;
 
 

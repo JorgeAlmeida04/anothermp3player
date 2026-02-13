@@ -1,3 +1,5 @@
+package music_player;
+
 import javax.sound.sampled.*;
 import java.io.File;
 import java.util.List;
@@ -10,11 +12,13 @@ import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Decoder;
 import javazoom.jl.decoder.Header;
 import javazoom.jl.decoder.SampleBuffer;
+import queue.QueueSongData;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 
-public class MusicPlayerModel extends Observable {
+public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     private Clip clip;
     private AudioInputStream audioStream;
     private AudioInputStream decodeStream;

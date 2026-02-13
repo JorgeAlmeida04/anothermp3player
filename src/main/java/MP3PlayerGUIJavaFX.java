@@ -1,36 +1,27 @@
-import eu.iamgio.animated.binding.Animated;
-import eu.iamgio.animated.binding.presets.AnimatedScale;
+import containers.*;
+import music_player.MusicPlayerAccess;
+import music_player.MusicPlayerModel;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.concurrent.Task;
-import javafx.geometry.*;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.ButtonBase;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontPosture;
-import javafx.scene.text.FontWeight;
-import javafx.stage.FileChooser;
-import javafx.stage.Popup;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import net.yetihafen.javafx.customcaption.CustomCaption;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
-import java.util.function.Function;
 
 public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
@@ -38,600 +29,135 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     private MusicPlayerModel musicPlayer;
 
-    //Global variables for the playback buttons
-    private Button playPauseButton;
-    private Button nextButton;
-    private Button prevButton;
+    private BottomContainer bottomContainer;
+    private CenterContainer centerContainer;
+    private TopContainer topContainer;
 
-    //Song and volume sliders global variables
-    private Slider volumeSlider;
-    private ProgressBar volumeBar;
-    private StackPane volumeSliderBar;
-
-    //Sons slider variables
-    private Slider songSlider;
-    private ProgressBar songBar;
-    private StackPane songSliderBar;
-    private boolean isDragging = false;
-
-    //Bottom container (it will have the buttons container and the song slider)
-    private GridPane bottomLayout;
-
-    //Buttons container
-    private GridPane playbackBox;
-
-    //Uploaded song file
+    private List<File> playlist;
     private File songFile;
 
-    //Global variables for the navigation menus
-    private MenuBar menuBar;
-    private Menu songsMenu;
-    private Menu playlistMenu;
-
-    //Items of the menus of the navigation menus
-    private MenuItem loadSong;
-    private MenuItem loadPlaylist;
-    private MenuItem createPlaylist;
-
-    //Song information to display
-    private Label songTitle;
-    private Label songArtist;
-    private ImageView songCover;
-    private List<File> playlist = new ArrayList<>();
-
-    //Container for the song labels
-    private VBox labelVBox;
-
-    //Container for the center of the main stage
-    private GridPane coverQueueContainer; //This grid will contain the album cover and the ListView os the queue
-    private ListView<QueueItem> queue; //This table will have a view for the queue
-
-    private FlowPane mainPage; //THis is supposed to be the home page
-    private StackPane homeNowPlayingContainer; //THis will contain the now playing (coverQueueContainer) and the home page (mainPage) layouts
-    private boolean isOpen = false;
-
-    //Main Stage variables
     private Stage window;
     private Scene scene;
     private BorderPane layout;
 
-    private void initBottomLayout() throws FileNotFoundException {
-        this.bottomLayout = new GridPane();
-        this.bottomLayout.getStyleClass().add("bottom-layout");
-        this.bottomLayout.setHgap(1);
-        this.bottomLayout.setMaxWidth(Double.MAX_VALUE);
-        this.bottomLayout.setAlignment(Pos.CENTER);
-        this.bottomLayout.setPadding(new Insets(0, 5, 5, 5));
+    private boolean isOpen = false;
 
-        //Configure the constraints for the columns on the bottomLayout grid
-        ColumnConstraints column1 = new ColumnConstraints();
-
-        column1.setHgrow(Priority.ALWAYS);
-        column1.setFillWidth(true);
-
-        this.bottomLayout.getColumnConstraints().addAll(column1);
-
-        //Init playback buttons container
-        this.playbackBox = new GridPane();
-        this.playbackBox.setVgap(2);
-        this.bottomLayout.setMaxWidth(Double.MAX_VALUE);
-        this.playbackBox.setAlignment(Pos.CENTER);
-        this.playbackBox.setPadding(new Insets(5, 5, 5, 5));
-
-        //Configure the constraints for the playbackBox grid
-        ColumnConstraints col1 = new ColumnConstraints(), col2 = new ColumnConstraints(), col3 = new ColumnConstraints();
-
-        col1.setPercentWidth(25);
-        col1.setHalignment(HPos.LEFT); // Keep buttons to the left
-
-        col2.setPercentWidth(50);
-        col2.setHalignment(HPos.CENTER); // Center the text perfectly
-
-        col3.setPercentWidth(25);
-        col3.setHalignment(HPos.RIGHT); // Keep volume slider to the right
-
-        playbackBox.getColumnConstraints().addAll(col1, col2, col3);
-
-        //Config playback buttons
-        addPlaybackButtons();
-
-        //Config song slider
-        initSongSlider();
-
-        //Config volume slider
-        initVolumeSlider();
-
-        //Config song info
-        initSongInfoVisualizer();
-
-        this.playbackBox.add(labelVBox, 1, 0);
-        this.playbackBox.add(volumeSliderBar, 2, 0);
-
-        this.bottomLayout.add(songSliderBar, 0, 0);
-        this.bottomLayout.add(playbackBox, 0, 1);
-
-        this.bottomLayout.setOnMouseClicked(event -> {
-            toggleView(this.coverQueueContainer);
-        });
-
+    @Override
+    public void init() {
+        this.musicPlayer = new MusicPlayerModel();
+        this.musicPlayer.addObserver(this);
     }
 
-    private void initHomePage() {
-        this.mainPage = new FlowPane();
-        this.mainPage.setAlignment(Pos.CENTER);
+    @Override
+    public void start(Stage stage) throws Exception {
+        layout = new BorderPane();
 
-        Button loadSongsButton = new Button("Load Songs");
-        loadSongsButton.getStyleClass().add("home-page-load-songs-button");
-        loadSongsButton.setOnMouseClicked(event -> {
-            multipleFileSelection();
-            if (!this.playlist.isEmpty()) {
-                this.mainPage.getChildren().clear();
-                fillTheHomePage();
-            }
+        window = stage;
+        window.setTitle("No Song Selected ~ Another MP3 Player");
+        window.setOnCloseRequest(e -> {
+            System.out.println("Closing");
+            window.close();
         });
 
-        this.mainPage.getChildren().add(loadSongsButton);
+        initContainers();
+
+        KeyFrame updater = new KeyFrame(Duration.seconds(DEFAULT_UPDATE_DURATION), e -> notifyGUI());
+        Timeline t = new Timeline(updater);
+        t.setCycleCount(Timeline.INDEFINITE);
+        t.play();
+
+        this.layout.setBottom(this.bottomContainer.getBottomLayout());
+        this.bottomContainer.getBottomLayout().setVisible(false);
+        this.layout.setTop(this.topContainer.getMenuBar());
+        this.layout.setCenter(this.centerContainer.getHomeNowPlayingContainer());
+
+        scene = new Scene(this.layout, 1260, 720);
+        scene.getStylesheets().add("Default_Theme.css");
+
+        window.setScene(scene);
+        window.show();
+
+        CustomCaption.setImmersiveDarkMode(this.window, true);
+
+        this.centerContainer.getCoverQueueContainer().setVisible(false);
+        this.centerContainer.getCoverQueueContainer().setMouseTransparent(true);
+        Platform.runLater(() -> {
+            this.centerContainer.getCoverQueueContainer().setTranslateY(2000);
+        });
     }
 
-    private void fillTheHomePage() {
-        if (this.playlist == null) return;
-
-        this.mainPage.setVgap(7);
-
-        if (this.playlist.size() < 8) {
-            this.mainPage.setHgap(this.playlist.size());
-        } else {
-            this.mainPage.setHgap(this.playlist.size() / 8);
-        }
-
-        this.mainPage.setAlignment(Pos.CENTER);
-        this.mainPage.setColumnHalignment(HPos.CENTER);
-        this.mainPage.setRowValignment(VPos.CENTER);
-        this.mainPage.setPadding(new Insets(5, 5, 5, 5));
-
-        //Background Task
-        //This task will retrieve the metadata from all the songs on the playlist
-        Task<Void> metadataTask = new Task<>() {
-            @Override
-            protected Void call() throws Exception {
-                for (int i = 0; i < playlist.size(); i++) {
-                    File file = playlist.get(i);
-                    int index = i;
-                    QueueSongData data = musicPlayer.getQueueData(file);
-
-                    Image img = null;
-                    if (data.imageData != null) {
-                        img = new Image(new ByteArrayInputStream(data.imageData), 100, 100, true, true);
-                    } else {
-                        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/generic-album-cover.jpeg");
-                        img = new Image(new ByteArrayInputStream(inputStream.readAllBytes()), 100, 100, true, true);
-                    }
-
-                    VBox vbox = new VBox();
-                    vbox.setAlignment(Pos.CENTER);
-                    vbox.setPadding(new Insets(5, 5, 5, 5));
-
-                    ImageView imageView = new ImageView();
-                    imageView.setImage(img);
-
-                    Label title = new Label();
-                    title.setText(data.title);
-
-                    Label artist = new Label();
-                    artist.setText(data.artist);
-
-                    vbox.getChildren().addAll(imageView, title, artist);
-
-                    Platform.runLater(() -> {
-                        vbox.setOnMouseClicked(event -> {
-                            if (musicPlayer.isRunning()) {
-                                musicPlayer.stop();
-                            }
-                            musicPlayer.setPlaylist(playlist);
-                            musicPlayer.setPlaylistPosition(index);
-                            musicPlayer.changeSong(playlist.get(index));
-                            loadQueueView();
-
-                            window.setTitle(playlist.get(index).getName() + " ~ Another MP3 Player");
-                            updateVolumeSlider();
-                            updateSongSlider();
-                            updateSongLabels();
-
-                            musicPlayer.start();
-                            setImage(playPauseButton, "new-pause.png");
-                        });
-                        mainPage.getChildren().add(vbox);
-                    });
-
-                    Thread.sleep(10);
-                }
-                return null;
-            }
-        };
-
-        Thread thread = new Thread(metadataTask);
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    private void addPlaybackButtons() {
-        //Creation of the playback buttons
-        //and set up of the action handler
-        playPauseButton = new Button();
-        setImage(playPauseButton, "new-play.png");
-        playPauseButton.setOnAction(e -> {
-            if (this.musicPlayer.hasClip()) {
-                if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
-                    this.musicPlayer.stop();
-                    setImage(playPauseButton, "new-play.png");
-                } else {
-                    this.musicPlayer.start();
-                    setImage(playPauseButton, "new-pause.png");
-                }
-            }
-        });
-
-        nextButton = new Button();
-        setImage(nextButton, "next.png");
-        nextButton.setOnAction(e -> {
-            if (this.musicPlayer.hasPlaylist()) {
-                loadPlaylistSong();
-            }
-        });
-
-        prevButton = new Button();
-        setImage(prevButton, "prev.png");
-        prevButton.setOnAction(e -> {
-            if (this.musicPlayer.hasPlaylist()) {
-                boolean wasRunning = this.musicPlayer.isRunning();
-                this.musicPlayer.stop();
-                File song = this.musicPlayer.loadPreviousSong();
-                if (song != null) {
-                    this.window.setTitle(song.getName() + " ~ Another MP3 Player");
-                    updateVolumeSlider();
-                    updateSongSlider();
-                    updateSongLabels();
-                    if (wasRunning) {
-                        this.musicPlayer.start();
-                        setImage(this.playPauseButton, "new-pause.png");
-                    }
-                }
-            }
-        });
-
-        //Creation of the buttons specific containers
-        FlowPane playbackButtons = new FlowPane();
-
-        playbackButtons.setHgap(5);
-        playbackButtons.setAlignment(Pos.CENTER);
-        playbackButtons.setPadding(new Insets(5, 5, 5, 5));
-        playbackButtons.getChildren().addAll(prevButton, playPauseButton, nextButton);
-
-        playbackBox.add(playbackButtons, 0, 0);
-    }
-
-    private void addMenuBarItems() {
-        //Creation of menu to load songs into the player
-        songsMenu = new Menu("Songs");
-
-        loadSong = new MenuItem("Load Song");
-        loadSong.setOnAction(e -> {
-            fileSelection();
-            System.out.println(this.songFile.getName());
-            if (this.songFile != null) {
-                loadSong();
-                this.musicPlayer.setPlaylist(null);
-                this.musicPlayer.start();
-            }
-            System.out.println("Loading song");
-        });
-
-        songsMenu.getItems().add(loadSong);
-
-        //Creation of the menu to create and load playlists
-        playlistMenu = new Menu("Playlist");
-
-        createPlaylist = new MenuItem("Create Playlist");
-        createPlaylist.setOnAction(e -> {
-            System.out.println("Creating playlist");
-        });
-
-        loadPlaylist = new MenuItem("Load Playlist");
-        loadPlaylist.setOnAction(e -> {
-            multipleFileSelection();
-            if (this.playlist != null) {
-                this.musicPlayer.setPlaylist(this.playlist);
-                loadPlaylistSong();
-                loadQueueView();
-            }
-            System.out.println("Loading playlist");
-        });
-
-        playlistMenu.getItems().addAll(createPlaylist, loadPlaylist);
-        menuBar.getMenus().addAll(songsMenu, playlistMenu);
-    }
-
-    private void initSongInfoVisualizer() throws FileNotFoundException {
-        labelVBox = new VBox();
-        labelVBox.setSpacing(10);
-        labelVBox.setPadding(new Insets(10, 10, 0, 10));
-        labelVBox.setAlignment(Pos.CENTER);
-
-        //Set up song title
-        songTitle = new Label("Song Title");
-        songTitle.setFont(Font.font("Comic Sans MS", FontWeight.BOLD, FontPosture.REGULAR, 25));
-
-        //Set up song artist
-        songArtist = new Label("Song Artist");
-        songArtist.setFont(Font.font("Comic Sans MS", FontWeight.SEMI_BOLD, FontPosture.REGULAR, 16));
-
-        labelVBox.getChildren().addAll(songTitle, songArtist);
-    }
-
-    private void initVolumeSlider() {
-        this.volumeBar = new ProgressBar(0);
-        this.volumeBar.getStyleClass().add("volume-bar");
-        this.volumeBar.setMaxWidth(Double.MAX_VALUE);
-
-        this.volumeSlider = new Slider(0, 100, 10);
-        this.volumeSlider.setOrientation(Orientation.HORIZONTAL);
-        this.volumeSlider.setMaxHeight(80);
-        this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
-            this.musicPlayer.volumeChange(newValue.doubleValue());
-        });
-        this.volumeSlider.getStyleClass().add("volume-slider");
-
-        setupSliderPopup(this.volumeSlider, value -> String.format("%.0f%%", value));
-
-        // Binds Progress = SliderValue / SliderMax
-        this.volumeBar.progressProperty().bind(
-                this.volumeSlider.valueProperty().divide(this.volumeSlider.maxProperty())
+    private void initContainers() throws Exception {
+        centerContainer = new CenterContainer(
+                (MusicPlayerAccess) musicPlayer,
+            this::onPlaylistLoaded,
+            this::onSongSelectedFromQueue,
+            this::onPlayPauseToggle
         );
-
-        this.volumeSliderBar = new StackPane();
-        this.volumeSliderBar.getChildren().addAll(this.volumeBar, this.volumeSlider);
-        this.volumeSliderBar.setAlignment(Pos.CENTER);
-
-    }
-
-    private void initWindowCenter() throws FileNotFoundException {
-        this.coverQueueContainer = new GridPane();
-        this.coverQueueContainer.getStyleClass().add("cover-queue-container");
-        this.coverQueueContainer.setVisible(false);
-        this.coverQueueContainer.setMouseTransparent(true);
-        this.coverQueueContainer.setManaged(false);
-        this.coverQueueContainer.setTranslateY(10000);
-        this.coverQueueContainer.setVgap(1);
-        this.coverQueueContainer.setMaxWidth(Double.MAX_VALUE);
-        this.coverQueueContainer.setAlignment(Pos.CENTER);
-
-        ColumnConstraints col1 = new ColumnConstraints(), col2 = new ColumnConstraints();
-
-        col1.setPercentWidth(70);
-        col1.setHalignment(HPos.CENTER);
-
-        col2.setPercentWidth(30);
-        col2.setHalignment(HPos.RIGHT);
-
-        this.coverQueueContainer.getColumnConstraints().addAll(col1, col2);
-
-        setSongCover();
-        Animated animatedCover = new Animated(this.songCover, new AnimatedScale());
-
-        initQueueView();
-
-        //Header for Queue
-        Label upNextLabel = new Label("UP NEXT");
-        upNextLabel.getStyleClass().add("queue-header-selected");
-
-        //Label lyricsLabel = new Label("LYRICS");
-        //lyricsLabel.getStyleClass().add("queue-header-unselected");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        HBox queueHeader = new HBox(upNextLabel, spacer);
-        queueHeader.setSpacing(20);
-        queueHeader.setPadding(new Insets(10));
-        queueHeader.setAlignment(Pos.CENTER_LEFT);
-        queueHeader.getStyleClass().add("queue-header-container");
-
-        VBox queueContainer = new VBox(queueHeader, this.queue);
-        VBox.setVgrow(this.queue, Priority.ALWAYS);
-        queueContainer.setPadding(new Insets(0, 25, 0, 0));
-
-        this.coverQueueContainer.add(animatedCover, 0, 0);
-        this.coverQueueContainer.add(queueContainer, 1, 0);
-    }
-
-    private void initQueueView() {
-        this.queue = new ListView<>();
-        this.queue.prefHeightProperty().bind(this.songCover.fitHeightProperty());
-        this.queue.getStyleClass().add("queue");
-        this.queue.setCellFactory(param -> new QueueCell());
-        this.queue.setOnMouseClicked(event -> {
-            int index = this.queue.getSelectionModel().getSelectedIndex();
-            if (index >= 0 && index < this.queue.getItems().size()) {
-                //Stop current song
-                if (this.musicPlayer.isRunning()) {
-                    this.musicPlayer.stop();
-                }
-
-                //Update Model
-                this.musicPlayer.setPlaylistPosition(index);
-                this.musicPlayer.changeSong(this.playlist.get(index));
-
-                //Update UI
-                this.window.setTitle(this.playlist.get(index).getName() + " ~ Another MP3 Player");
-                updateVolumeSlider();
-                updateSongSlider();
-                updateSongLabels();
-
-                //Play
-                this.musicPlayer.start();
-                setImage(this.playPauseButton, "new-pause.png");
-            }
-        });
-    }
-
-    private void initSongSlider() {
-        this.songBar = new ProgressBar(0.0);
-        this.songBar.getStyleClass().add("song-bar");
-        this.songBar.setMaxWidth(Double.MAX_VALUE);
-
-        this.songSlider = new Slider(0, 100, 0);
-        this.songSlider.setShowTickMarks(false);
-        this.songSlider.setShowTickLabels(false);
-        this.songSlider.setMajorTickUnit(60 * 44231.5636364);
-        this.songSlider.setOrientation(Orientation.HORIZONTAL);
-        this.songSlider.getStyleClass().add("song-slider");
-
-        setupSliderPopup(this.songSlider, hoverValue -> {
-            if (this.songSlider.getMax() > 0) {
-                double timeUnit = 44231.5636364; // Your specific unit
-                int minutes = (int) (hoverValue / timeUnit) / 60;
-                int seconds = (int) (hoverValue / timeUnit) % 60;
-                return String.format("%d:%02d", minutes, seconds);
-            }
-            return "0:00";
-        });
-
-        this.songSlider.setOnMousePressed(event -> {
-            this.isDragging = true;
-        });
-
-        this.songSlider.setOnMouseReleased(event -> {
-            this.musicPlayer.setSongPosition(((int) this.songSlider.getValue()));
-            this.isDragging = false;
-        });
-
-        // Manually update the progress bar when the slider value changes to trigger the animation
-        this.songSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
-            if (this.songSlider.getMax() > 0) {
-                this.songBar.setProgress(newValue.doubleValue() / this.songSlider.getMax());
-            } else {
-                this.songBar.setProgress(0);
-            }
-        });
-
-        // Ensure the progress is correct if the song length (max value) changes
-        this.songSlider.maxProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue.doubleValue() > 0) {
-                this.songBar.setProgress(this.songSlider.getValue() / newValue.doubleValue());
-            } else {
-                this.songBar.setProgress(0);
-            }
-        });
-
-        this.songSliderBar = new StackPane();
-        this.songSliderBar.getChildren().addAll(songBar, songSlider);
-        this.songSliderBar.setAlignment(Pos.CENTER);
-
-        // Bind the progress bar width to the container width to ensure it fills the space
-        // This is necessary because the Animated wrapper interrupts standard layout resizing
-        this.songBar.prefWidthProperty().bind(this.songSliderBar.widthProperty());
-    }
-
-    private void setupSliderPopup(Slider slider, Function<Double, String> formatter) {
-        Label label = new Label();
-        Popup popup = new Popup();
-        popup.getContent().add(label);
-
-        slider.setOnMouseMoved(event -> {
-            double mouseX = event.getX();
-            double totalWidth = slider.getWidth();
-
-            if (totalWidth <= 0) return;
-
-            double percentage = mouseX / totalWidth;
-            percentage = Math.max(0, Math.min(1, percentage));
-
-            double min = slider.getMin();
-            double max = slider.getMax();
-            double hoverValue = min + (percentage * (max - min));
-
-            label.setText(formatter.apply(hoverValue));
-
-            popup.setAnchorX(event.getScreenX() + 10);
-            popup.setAnchorY(event.getScreenY() - 30);
-        });
-
-        slider.setOnMouseEntered(event -> popup.show(slider, event.getScreenX() + 10, event.getScreenY() - 30));
-        slider.setOnMouseExited(event -> popup.hide());
-    }
-
-    //Set initial cover
-    private void setSongCover() throws FileNotFoundException {
-        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/generic-album-cover.jpeg");
-        Image image = new Image(inputStream);
-        this.songCover = new ImageView(image);
-        this.songCover.setPreserveRatio(true);
-        this.songCover.fitWidthProperty().bind(this.layout.widthProperty().multiply(0.7));
-        this.songCover.fitHeightProperty().bind(this.layout.heightProperty().multiply(0.7));
-        this.songCover.setOnMouseClicked(event -> {
-            if (this.musicPlayer.hasClip()) {
-                if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
-                    this.musicPlayer.stop();
-                    setImage(this.playPauseButton, "new-play.png");
-                } else {
-                    this.musicPlayer.start();
-                    setImage(this.playPauseButton, "new-pause.png");
-                }
-            }
-        });
-    }
-
-    private void setImage(ButtonBase b, String fileName) {
-        String resourcePath = "/assets/" + fileName;
-        var inputStream = getClass().getResourceAsStream(resourcePath);
-
-        if (inputStream == null) {
-            throw new RuntimeException("Resource not found: " + resourcePath);
-        }
-
-        Image image = new Image(inputStream);
-        b.setGraphic(new ImageView(image));
-    }
-
-    //Loads the new song file to the system
-    private void fileSelection() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select a mp3 file");
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home") + "\\Music"));
-        fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("MP3 File", "*.mp3"),
-                new FileChooser.ExtensionFilter("All File", "*.*")
+        centerContainer.initialize(layout);
+        
+        topContainer = new TopContainer(
+                (MusicPlayerAccess) musicPlayer,
+            window,
+            this::onSongLoaded,
+            this::onPlaylistLoaded,
+            this::loadPlaylistSong,
+            this::loadQueueView
         );
-        this.songFile = fileChooser.showOpenDialog(window);
-        this.playlist.add(this.songFile);
-        loadQueueView();
-    }
-
-    private void multipleFileSelection() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select a mp3 file");
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home") + "\\Music"));
-        fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("MP3 File", "*.mp3"),
-                new FileChooser.ExtensionFilter("All File", "*.*")
+        topContainer.initialize();
+        
+        bottomContainer = new BottomContainer(
+                (MusicPlayerAccess) musicPlayer,
+            this::toggleView,
+            this::loadPlaylistSong,
+            this::updateSongLabels,
+            this::onPrevSong
         );
-
-        this.playlist = fileChooser.showOpenMultipleDialog(window);
+        bottomContainer.initialize(centerContainer.getCoverQueueContainer());
+        
+        centerContainer.setUpdateCallbacks(
+            this::updateVolumeSlider,
+            this::updateSongSlider,
+            this::updateSongLabels
+        );
+        centerContainer.setupHomePageLoadButton(this::multipleFileSelectionAndFill);
     }
 
-    //Loads a new song. Updates the song slider and volume slider accordingly
-    private void loadSong() {
+    private void onSongLoaded(File songFile) {
+        this.songFile = songFile;
         if (this.musicPlayer.hasClip() && this.musicPlayer.isRunning()) {
             this.musicPlayer.stop();
         }
-        this.musicPlayer.changeSong(this.songFile);
+        this.musicPlayer.changeSong(songFile);
 
         if (this.musicPlayer.hasClip()) {
-            this.window.setTitle(this.songFile.getName() + "~ Another MP3 Player");
+            window.setTitle(songFile.getName() + "~ Another MP3 Player");
             updateSongLabels();
             updateVolumeSlider();
             updateSongSlider();
         }
+    }
+
+    private void onPlaylistLoaded(List<File> playlist) {
+        this.playlist = playlist;
+        this.musicPlayer.setPlaylist(playlist);
+    }
+
+    private void onSongSelectedFromQueue(File song) {
+        window.setTitle(song.getName() + " ~ Another MP3 Player");
+        updateVolumeSlider();
+        updateSongSlider();
+        updateSongLabels();
+    }
+
+    private void onPrevSong(File song) {
+        window.setTitle(song.getName() + " ~ Another MP3 Player");
+        updateVolumeSlider();
+        updateSongSlider();
+        updateSongLabels();
+    }
+
+    private void onPlayPauseToggle() {
+        bottomContainer.updatePlayPauseButton();
     }
 
     private void loadPlaylistSong() {
@@ -647,86 +173,69 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         }
 
         if (song != null && this.musicPlayer.hasClip()) {
-            this.window.setTitle(song.getName() + "~ Another MP3 Player");
+            window.setTitle(song.getName() + "~ Another MP3 Player");
             updateSongLabels();
             updateVolumeSlider();
             updateSongSlider();
             this.musicPlayer.start();
 
             if (wasRunning) {
-                setImage(this.playPauseButton, "new-pause.png");
+                setImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
                 this.musicPlayer.start();
             }
         }
     }
 
     private void loadQueueView() {
-        if (this.playlist == null || this.playlist.isEmpty()) return;
+        centerContainer.loadQueueView(playlist);
+        centerContainer.setupQueueSelectionHandler(playlist, this::setWindowTitle, bottomContainer.getPlayPauseButton());
+    }
 
-        this.queue.getItems().clear();
-
-        //Initial Fill
-        for (File file : this.playlist) {
-            this.queue.getItems().add(new QueueItem(file, file.getName(), "", "", null));
-        }
-
-        //Background Task
-        //This task will retrieve the metadata from all the songs on the playlist
-        Task<Void> metadataTask = new Task<>() {
-            @Override
-            protected Void call() throws Exception {
-                for (int i = 0; i < playlist.size(); i++) {
-                    File file = playlist.get(i);
-                    QueueSongData data = musicPlayer.getQueueData(file);
-
-                    Image img = null;
-                    if (data.imageData != null) {
-                        img = new Image(new ByteArrayInputStream(data.imageData), 40, 40, true, true);
-                    }
-
-                    QueueItem item = new QueueItem(file, data.title, data.artist, data.duration, img);
-
-                    final int index = i;
-                    Platform.runLater(() -> {
-                        if (queue.getItems().size() > index) {
-                            queue.getItems().set(index, item);
-                        }
-                    });
-
-                    Thread.sleep(10);
+    private void multipleFileSelectionAndFill() {
+        List<File> selectedFiles = topContainer.multipleFileSelection();
+        if (selectedFiles != null && !selectedFiles.isEmpty()) {
+            this.playlist = selectedFiles;
+            this.musicPlayer.setPlaylist(selectedFiles);
+            centerContainer.getMainPage().getChildren().clear();
+            centerContainer.fillTheHomePage(
+                playlist,
+                "",
+                this::setWindowTitle,
+                () -> {
+                    updateVolumeSlider();
+                    updateSongSlider();
+                    updateSongLabels();
+                    setImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
                 }
-                return null;
-            }
-        };
-
-        Thread thread = new Thread(metadataTask);
-        thread.setDaemon(true);
-        thread.start();
+            );
+        }
     }
 
-    //Update song labels
-    private void updateSongLabels() {
-        this.songTitle.setText(this.musicPlayer.getSongTitle());
-        this.songArtist.setText(this.musicPlayer.getSongArtist());
-        ByteArrayInputStream bis = new ByteArrayInputStream(this.musicPlayer.getSongAlbumImage());
-        this.songCover.setImage(new Image(bis, 400, 400, true, true));
-    }
-
-    //Update volume slider
     private void updateVolumeSlider() {
-        this.volumeSlider.setMin(0);
-        this.volumeSlider.setMax(100);
-        this.volumeSlider.setValue(10);
+        if (bottomContainer != null) {
+            bottomContainer.updateVolumeSlider();
+        }
     }
 
-    //Update song slider
     private void updateSongSlider() {
-        this.songSlider.setMax(this.musicPlayer.getClipLength());
-        this.songSlider.setMin(0);
-        this.songSlider.setValue(0);
+        if (bottomContainer != null) {
+            bottomContainer.updateSongSlider();
+        }
     }
 
-    //Notifies the GUI to update
+    private void updateSongLabels() {
+        if (bottomContainer != null) {
+            bottomContainer.updateSongLabels();
+        }
+        if (centerContainer != null) {
+            centerContainer.updateSongCover();
+        }
+    }
+
+    private void setWindowTitle(String title) {
+        window.setTitle(title);
+    }
+
     private void notifyGUI() {
         this.musicPlayer.announceChanges();
     }
@@ -735,25 +244,23 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         boolean opening = !isOpen;
 
         if (opening) {
-            if (!this.homeNowPlayingContainer.getChildren().contains(viewToAnimate)) {
-                this.homeNowPlayingContainer.getChildren().add(viewToAnimate);
+            StackPane container = centerContainer.getHomeNowPlayingContainer();
+            if (!container.getChildren().contains(viewToAnimate)) {
+                container.getChildren().add(viewToAnimate);
             }
             viewToAnimate.setVisible(true);
             viewToAnimate.setMouseTransparent(false);
             viewToAnimate.setManaged(true);
         }
 
-        //Prepare animation parameters
         double endValue = opening ? 0 : this.layout.getHeight();
 
-        //Use a timeline for smooth animation
         Timeline timeline = new Timeline();
 
-        //Animate the Y Translation
         KeyValue kv = new KeyValue(
                 viewToAnimate.translateYProperty(),
                 endValue,
-                Interpolator.EASE_BOTH //Smooth start and end
+                Interpolator.EASE_BOTH
         );
 
         KeyFrame kf = new KeyFrame(Duration.millis(150), kv);
@@ -764,7 +271,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                 viewToAnimate.setVisible(false);
                 viewToAnimate.setMouseTransparent(true);
                 viewToAnimate.setManaged(false);
-                this.homeNowPlayingContainer.getChildren().remove(viewToAnimate);
+                centerContainer.getHomeNowPlayingContainer().getChildren().remove(viewToAnimate);
             }
         });
 
@@ -773,98 +280,36 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     }
 
     @Override
-    public void init() {
-        this.musicPlayer = new MusicPlayerModel();
-        this.musicPlayer.addObserver(this);
-    }
-
-    @Override
-    public void start(Stage stage) throws Exception {
-        layout = new BorderPane();
-        menuBar = new MenuBar();
-
-        window = stage;
-        window.setTitle("No Song Selected ~ Another MP3 Player");
-        window.setOnCloseRequest(e -> {
-            System.out.println("Closing");
-            window.close();
-        });
-
-        //Top Bar Navigation
-        addMenuBarItems();
-
-        //Bottom container config
-        initBottomLayout();
-
-        //Center of the screen
-        initWindowCenter();
-
-        //Home page
-        initHomePage();
-
-        //Starts a TimeLine that automatically updates the gui every second
-        //This allows for the song slider to move the song's position
-        KeyFrame updater = new KeyFrame(Duration.seconds(DEFAULT_UPDATE_DURATION), e -> notifyGUI());
-        Timeline t = new Timeline(updater);
-        t.setCycleCount(Timeline.INDEFINITE);
-        t.play();
-
-        this.layout.setBottom(this.bottomLayout);
-        this.bottomLayout.setVisible(false);
-        this.layout.setTop(this.menuBar);
-
-        ScrollPane scrollPane = new ScrollPane(this.mainPage);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.getStyleClass().add("modern-scroll-pane");
-
-        // Ensure FlowPane fills the height to keep things centered when there are few items
-        this.mainPage.prefHeightProperty().bind(scrollPane.heightProperty().subtract(2));
-
-        this.homeNowPlayingContainer = new StackPane();
-        this.homeNowPlayingContainer.setAlignment(Pos.CENTER);
-        this.homeNowPlayingContainer.getChildren().add(scrollPane);
-
-        this.layout.setCenter(this.homeNowPlayingContainer);
-
-        scene = new Scene(this.layout, 1260, 720);
-        scene.getStylesheets().add("Default_Theme.css");
-
-        window.setScene(scene);
-        window.show();
-
-        //CustomCaption.setCaptionColor(this.window, Color.BLACK);
-        CustomCaption.setImmersiveDarkMode(this.window, true);
-
-        this.coverQueueContainer.setVisible(false);
-        this.coverQueueContainer.setMouseTransparent(true);
-        Platform.runLater(() -> {
-            this.coverQueueContainer.setTranslateY(2000);
-        });
-    }
-
-    @Override
     public void update(Observable o, Object arg) {
-        //Make sure play button is in sync
         if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
-            setImage(playPauseButton, "new-pause.png");
+            setImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
         } else {
-            setImage(playPauseButton, "new-play.png");
+            setImage(bottomContainer.getPlayPauseButton(), "new-play.png");
         }
         if (this.musicPlayer.hasClip()) {
-            this.bottomLayout.setVisible(true);
+            this.bottomContainer.getBottomLayout().setVisible(true);
             if (this.musicPlayer.atEnd()) {
                 if (this.musicPlayer.hasPlaylist()) {
                     loadPlaylistSong();
                 } else {
-                    this.bottomLayout.setVisible(false);
+                    this.bottomContainer.getBottomLayout().setVisible(false);
                 }
             }
-            //Update slider based on current song position
-            if (!this.isDragging) {
-                this.songSlider.setValue(this.musicPlayer.getClipCurrentValue());
+            if (!bottomContainer.isDragging()) {
+                bottomContainer.getSongSlider().setValue(this.musicPlayer.getClipCurrentValue());
             }
         }
+    }
+
+    private void setImage(ButtonBase b, String fileName) {
+        String resourcePath = "/assets/" + fileName;
+        var inputStream = getClass().getResourceAsStream(resourcePath);
+
+        if (inputStream == null) {
+            throw new RuntimeException("Resource not found: " + resourcePath);
+        }
+
+        Image image = new Image(inputStream);
+        b.setGraphic(new ImageView(image));
     }
 }

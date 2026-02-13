@@ -1,3 +1,5 @@
+package queue;
+
 public class QueueSongData {
     public String title;
     public String artist;
