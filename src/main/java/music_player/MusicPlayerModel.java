@@ -20,10 +20,6 @@ import java.io.FileInputStream;
 
 public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     private Clip clip;
-    private AudioInputStream audioStream;
-    private AudioInputStream decodeStream;
-    private AudioFormat audioFormat;
-    private AudioFormat decodeFormat;
     private List<File> playlist;
     private int playlistPosition;
     private String currentTitle;
@@ -33,28 +29,28 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
 
     public MusicPlayerModel() {
         this.clip = null;
-        this.audioStream = null;
-        this.audioFormat = null;
-        this.decodeFormat = null;
-        this.decodeStream = null;
         this.playlist = null;
     }
 
     //Change the song loaded onto the clip
     public void changeSong(File mp3){
         try{
-            extractMetadata(mp3);
-            this.audioStream = getAudioInputStream(mp3);
-            this.audioFormat = audioStream.getFormat();
+            // Close previous clip and streams to prevent resource leaks
+            closeClip();
 
+            extractMetadata(mp3);
+            AudioInputStream audioStream = getAudioInputStream(mp3);
+            AudioFormat audioFormat = audioStream.getFormat();
+
+            AudioInputStream decodeStream;
             // If the format is already PCM_SIGNED and compatible, use it directly
             // Otherwise, try to convert (legacy logic for WAVs that might be different)
-            if (this.audioFormat.getEncoding() == AudioFormat.Encoding.PCM_SIGNED &&
-                this.audioFormat.getSampleSizeInBits() == 16 &&
-                !this.audioFormat.isBigEndian()) {
-                 this.decodeStream = this.audioStream;
+            if (audioFormat.getEncoding() == AudioFormat.Encoding.PCM_SIGNED &&
+                audioFormat.getSampleSizeInBits() == 16 &&
+                !audioFormat.isBigEndian()) {
+                 decodeStream = audioStream;
             } else {
-                this.decodeFormat = new AudioFormat(
+                AudioFormat decodeFormat = new AudioFormat(
                         AudioFormat.Encoding.PCM_SIGNED,
                         audioFormat.getSampleRate(),
                         16,
@@ -63,12 +59,19 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
                         audioFormat.getSampleRate(),
                         false
                 );
-                this.decodeStream = AudioSystem.getAudioInputStream(decodeFormat, audioStream);
+                decodeStream = AudioSystem.getAudioInputStream(decodeFormat, audioStream);
             }
             
             this.clip = AudioSystem.getClip();
             this.clip.open(decodeStream);
             this.clip.setFramePosition(0);
+
+            // Close streams after clip has been opened (data is buffered in clip)
+            decodeStream.close();
+            if (decodeStream != audioStream) {
+                audioStream.close();
+            }
+
             volumeChange(this.currentVolume);
         } catch (Exception e) {
             e.printStackTrace();
@@ -77,6 +80,22 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
         }
     }
 
+    /**
+     * Closes the current clip and releases its audio resources.
+     * Must be called before loading a new song to prevent resource leaks.
+     */
+    private void closeClip() {
+        if (this.clip != null) {
+            this.clip.stop();
+            this.clip.close();
+            this.clip = null;
+        }
+    }
+
+    /**
+     * Extracts ID3 metadata (title, artist, album image) from an MP3 file.
+     * Falls back to filename/defaults if tags are missing.
+     */
     private void extractMetadata(File file){
         try{
             Mp3File mp3File = new Mp3File(file);
@@ -88,14 +107,14 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
 
             if(mp3File.hasId3v2Tag()){
                 ID3v2 id3v2Tag = mp3File.getId3v2Tag();
-                this.currentTitle = id3v2Tag.getTitle();
-                this.currentArtist = id3v2Tag.getArtist();
+                if (id3v2Tag.getTitle() != null) this.currentTitle = id3v2Tag.getTitle();
+                if (id3v2Tag.getArtist() != null) this.currentArtist = id3v2Tag.getArtist();
                 this.currentAlbumImage = id3v2Tag.getAlbumImage();
             }else if(mp3File.hasId3v1Tag()){
                 //ID3v1 does not support images
                 ID3v1 id3v1Tag = mp3File.getId3v1Tag();
-                this.currentTitle = id3v1Tag.getTitle();
-                this.currentArtist = id3v1Tag.getArtist();
+                if (id3v1Tag.getTitle() != null) this.currentTitle = id3v1Tag.getTitle();
+                if (id3v1Tag.getArtist() != null) this.currentArtist = id3v1Tag.getArtist();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -111,38 +130,53 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     }
 
     private AudioInputStream decodeMp3(File file) throws Exception {
-        FileInputStream fis = new FileInputStream(file);
-        Bitstream bitstream = new Bitstream(fis);
-        Decoder decoder = new Decoder();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // Use try-with-resources to ensure FileInputStream is closed on error
+        try (FileInputStream fis = new FileInputStream(file)) {
+            Bitstream bitstream = new Bitstream(fis);
+            Decoder decoder = new Decoder();
+            // Pre-size the buffer to reduce array copies (~10MB initial capacity for typical MP3)
+            ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
 
-        Header h = bitstream.readFrame();
-        if (h == null) {
-            return null;
-        }
-
-        int sampleRate = h.frequency();
-        int channels = (h.mode() == Header.SINGLE_CHANNEL) ? 1 : 2;
-
-        int frames = 0;
-        while (h != null) {
-            SampleBuffer sb = (SampleBuffer) decoder.decodeFrame(h, bitstream);
-            short[] buffer = sb.getBuffer();
-            int len = sb.getBufferLength();
-            for (int i = 0; i < len; i++) {
-                short s = buffer[i];
-                out.write(s & 0xff);
-                out.write((s >> 8) & 0xff);
+            Header h = bitstream.readFrame();
+            if (h == null) {
+                bitstream.close();
+                return null;
             }
-            bitstream.closeFrame();
-            frames++;
-            h = bitstream.readFrame();
-        }
-        bitstream.close();
 
-        byte[] audioData = out.toByteArray();
-        AudioFormat format = new AudioFormat(sampleRate, 16, channels, true, false);
-        return new AudioInputStream(new ByteArrayInputStream(audioData), format, audioData.length / format.getFrameSize());
+            int sampleRate = h.frequency();
+            int channels = (h.mode() == Header.SINGLE_CHANNEL) ? 1 : 2;
+
+            // Reusable byte buffer to avoid per-sample write calls
+            byte[] frameBytes = new byte[0];
+
+            while (h != null) {
+                SampleBuffer sb = (SampleBuffer) decoder.decodeFrame(h, bitstream);
+                short[] buffer = sb.getBuffer();
+                int len = sb.getBufferLength();
+
+                // Ensure byte buffer is large enough
+                int needed = len * 2;
+                if (frameBytes.length < needed) {
+                    frameBytes = new byte[needed];
+                }
+
+                // Convert shorts to little-endian bytes in bulk
+                for (int i = 0; i < len; i++) {
+                    short s = buffer[i];
+                    frameBytes[i * 2] = (byte) (s & 0xff);
+                    frameBytes[i * 2 + 1] = (byte) ((s >> 8) & 0xff);
+                }
+                out.write(frameBytes, 0, needed);
+
+                bitstream.closeFrame();
+                h = bitstream.readFrame();
+            }
+            bitstream.close();
+
+            byte[] audioData = out.toByteArray();
+            AudioFormat format = new AudioFormat(sampleRate, 16, channels, true, false);
+            return new AudioInputStream(new ByteArrayInputStream(audioData), format, audioData.length / format.getFrameSize());
+        }
     }
 
     //Starts the playlist
@@ -214,28 +248,21 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
             }
 
             //Convert Percentage to Decibels (Logarithmic Scale)
-            // Formula: 20 * log10(amplitude)
-            float dB = getDB(volumePercentage, gainControl);
-
+            float dB = calculateDB(volumePercentage, gainControl);
             gainControl.setValue(dB);
         }
     }
 
-    private static float getDB(float volumePercentage, FloatControl gainControl) {
+    /**
+     * Converts a linear volume percentage to decibels, clamped to hardware limits.
+     */
+    private static float calculateDB(float volumePercentage, FloatControl gainControl) {
         float dB = (float) (Math.log10(volumePercentage) * 20.0);
 
-        // Clamp the value just in case (optional but safe)
-        // Usually min is -80.0dB and max is 6.0dB
         float min = gainControl.getMinimum();
         float max = gainControl.getMaximum();
 
-        // Ensure we don't go below the hardware minimum
-        if (dB < min) dB = min;
-
-        // Ensure we don't exceed the hardware maximum (usually +6dB, but 0dB is safer for "100%")
-        if (dB > max) dB = max;
-
-        return dB;
+        return Math.max(min, Math.min(max, dB));
     }
 
     //Rewinds the clip to the start
@@ -270,30 +297,8 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
         return  this.currentArtist;
     }
 
-    public byte[]  getSongAlbumImage(){
+    public byte[] getSongAlbumImage(){
         return  this.currentAlbumImage;
-    }
-
-    //Extracts the songs metadata for the queue
-    public String[] getSongMetadata(File file){
-        String title = file.getName();
-        String artist = "Unknown Artist";
-        try{
-            Mp3File mp3File = new Mp3File(file);
-            if(mp3File.hasId3v2Tag()){
-                ID3v2 id3v2Tag = mp3File.getId3v2Tag();
-                if (id3v2Tag.getTitle() != null) title = id3v2Tag.getTitle();
-                if (id3v2Tag.getArtist() != null) artist = id3v2Tag.getArtist();
-            } else if (mp3File.hasId3v1Tag()){
-                ID3v1 id3v1Tag = mp3File.getId3v1Tag();
-                if (id3v1Tag.getTitle() != null) title = id3v1Tag.getTitle();
-                if (id3v1Tag.getArtist() != null) artist = id3v1Tag.getArtist();
-            }
-        }catch(Exception e){
-            //Fallback to defaults
-            e.printStackTrace();
-        }
-        return new String[]{title, artist};
     }
 
     //Sets the playlist to the new list
@@ -313,30 +318,16 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     }
 
     //Gets the playlist position
-    public int  getPlaylistPosition(){
+    public int getPlaylistPosition(){
         return this.playlistPosition;
     }
 
-    //Gets the minimum decibel volume of the clip
-    public double getMinVolume(){
-        FloatControl gainControl = (FloatControl) this.clip.getControl(FloatControl.Type.MASTER_GAIN);
-        return gainControl.getMinimum();
-    }
-
-    //Gets the maximum decibel volume of the clip
-    public double getMaxVolume(){
-        FloatControl gainControl = (FloatControl) this.clip.getControl(FloatControl.Type.MASTER_GAIN);
-        return gainControl.getMaximum();
-    }
-
     //Gets the total length of the current clip
-    //Implies that there is a current song stored in this.clip
     public int getClipLength(){
         return this.clip.getFrameLength();
     }
 
     //Gets the current position of the song
-    //Implies that there is a current song stores in this.clip
     public int getClipCurrentValue(){
         return this.clip.getFramePosition();
     }
@@ -370,6 +361,10 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
         notifyObservers();
     }
 
+    /**
+     * Extracts metadata from an MP3 file for queue display.
+     * Consolidates the previously duplicated getSongMetadata() and getQueueData() methods.
+     */
     public QueueSongData getQueueData(File file) {
         String title = file.getName();
         String artist = "Unknown Artist";

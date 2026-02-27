@@ -4,13 +4,9 @@ import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBase;
 import javafx.scene.control.Label;
-import javafx.stage.Popup;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.Slider;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
@@ -21,7 +17,9 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
+import javafx.stage.Popup;
 import music_player.MusicPlayerAccess;
+import util.ImageCache;
 
 import java.io.File;
 import java.util.function.Consumer;
@@ -73,8 +71,6 @@ public class BottomContainer {
     private final Runnable updateSongLabelsCallback;       // Callback to update song labels
     private final Consumer<File> onPrevSongCallback;       // Callback when previous song is loaded
 
-    private double currentVolume = 10.0; // Keep track of the volume choice of the user
-
     /**
      * Constructs a new BottomContainer with the required dependencies and callbacks.
      * 
@@ -101,9 +97,8 @@ public class BottomContainer {
      * Must be called after construction before using the container.
      * 
      * @param coverQueueContainer The region to toggle visibility for when clicking bottom layout
-     * @throws Exception If initialization fails
      */
-    public void initialize(Region coverQueueContainer) throws Exception {
+    public void initialize(Region coverQueueContainer) {
         initBottomLayout(coverQueueContainer);
     }
 
@@ -145,13 +140,12 @@ public class BottomContainer {
 
     /**
      * Resets the volume slider to default values.
-     * Sets range to 0-100 with initial value of 10.
+     * Sets range to 0-100 with initial value from the music player.
      */
     public void updateVolumeSlider() {
         this.volumeSlider.setMin(0);
         this.volumeSlider.setMax(100);
-        this.currentVolume = this.musicPlayer.getCurrentVolume();
-        this.volumeSlider.setValue(this.currentVolume);
+        this.volumeSlider.setValue(this.musicPlayer.getCurrentVolume());
     }
 
     /**
@@ -178,9 +172,9 @@ public class BottomContainer {
      */
     public void updatePlayPauseButton() {
         if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
-            setImage(playPauseButton, "new-pause.png");
+            ImageCache.setButtonImage(playPauseButton, "new-pause.png");
         } else {
-            setImage(playPauseButton, "new-play.png");
+            ImageCache.setButtonImage(playPauseButton, "new-play.png");
         }
     }
 
@@ -201,9 +195,8 @@ public class BottomContainer {
      * Creates a two-row grid with song slider on top and controls below.
      * 
      * @param coverQueueContainer The region to show/hide when clicking this layout
-     * @throws Exception If initialization fails
      */
-    private void initBottomLayout(Region coverQueueContainer) throws Exception {
+    private void initBottomLayout(Region coverQueueContainer) {
         // Create main container with styling
         this.bottomLayout = new GridPane();
         this.bottomLayout.getStyleClass().add("bottom-layout");
@@ -223,7 +216,7 @@ public class BottomContainer {
         this.playbackBox.setVgap(2);
         this.playbackBox.setMaxWidth(Double.MAX_VALUE);
         this.playbackBox.setAlignment(Pos.CENTER);
-        this.playbackBox.setPadding(new Insets(5, 5, 5, 5));
+        this.playbackBox.setPadding(new Insets(5));
 
         // Configure three columns: left (buttons), center (song info), right (volume)
         ColumnConstraints col1 = new ColumnConstraints(), col2 = new ColumnConstraints(), col3 = new ColumnConstraints();
@@ -264,22 +257,22 @@ public class BottomContainer {
     private void addPlaybackButtons() {
         // Play/Pause button - toggles playback state
         playPauseButton = new Button();
-        setImage(playPauseButton, "new-play.png");
+        ImageCache.setButtonImage(playPauseButton, "new-play.png");
         playPauseButton.setOnAction(e -> {
             if (this.musicPlayer.hasClip()) {
                 if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
                     this.musicPlayer.stop();
-                    setImage(playPauseButton, "new-play.png");
+                    ImageCache.setButtonImage(playPauseButton, "new-play.png");
                 } else {
                     this.musicPlayer.start();
-                    setImage(playPauseButton, "new-pause.png");
+                    ImageCache.setButtonImage(playPauseButton, "new-pause.png");
                 }
             }
         });
 
         // Next button - loads next song in playlist
         nextButton = new Button();
-        setImage(nextButton, "next.png");
+        ImageCache.setButtonImage(nextButton, "next.png");
         nextButton.setOnAction(e -> {
             if (this.musicPlayer.hasPlaylist() && loadPlaylistSongCallback != null) {
                 loadPlaylistSongCallback.run();
@@ -288,7 +281,7 @@ public class BottomContainer {
 
         // Previous button - loads previous song in playlist
         prevButton = new Button();
-        setImage(prevButton, "prev.png");
+        ImageCache.setButtonImage(prevButton, "prev.png");
         prevButton.setOnAction(e -> {
             if (this.musicPlayer.hasPlaylist()) {
                 boolean wasRunning = this.musicPlayer.isRunning();
@@ -298,7 +291,7 @@ public class BottomContainer {
                     onPrevSongCallback.accept(song);
                     if (wasRunning) {
                         this.musicPlayer.start();
-                        setImage(this.playPauseButton, "new-pause.png");
+                        ImageCache.setButtonImage(this.playPauseButton, "new-pause.png");
                     }
                 }
             }
@@ -308,7 +301,7 @@ public class BottomContainer {
         FlowPane playbackButtons = new FlowPane();
         playbackButtons.setHgap(5);
         playbackButtons.setAlignment(Pos.CENTER);
-        playbackButtons.setPadding(new Insets(5, 5, 5, 5));
+        playbackButtons.setPadding(new Insets(5));
         playbackButtons.getChildren().addAll(prevButton, playPauseButton, nextButton);
 
         playbackBox.add(playbackButtons, 0, 0);
@@ -350,7 +343,6 @@ public class BottomContainer {
         this.volumeSlider.setOrientation(javafx.geometry.Orientation.HORIZONTAL);
         this.volumeSlider.setMaxHeight(80);
         this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
-            this.currentVolume = newValue.doubleValue();
             this.musicPlayer.volumeChange(newValue.doubleValue());
         });
         this.volumeSlider.getStyleClass().add("volume-slider");
@@ -456,8 +448,7 @@ public class BottomContainer {
             if (totalWidth <= 0) return;
 
             // Calculate value at mouse position
-            double percentage = mouseX / totalWidth;
-            percentage = Math.max(0, Math.min(1, percentage));
+            double percentage = Math.max(0, Math.min(1, mouseX / totalWidth));
 
             double min = slider.getMin();
             double max = slider.getMax();
@@ -474,23 +465,5 @@ public class BottomContainer {
         slider.setOnMouseEntered(event -> popup.show(slider, event.getScreenX() + 10, event.getScreenY() - 30));
         // Hide popup on mouse exit
         slider.setOnMouseExited(event -> popup.hide());
-    }
-
-    /**
-     * Sets the icon image for a button from the assets folder.
-     * 
-     * @param b        The button to set the image on
-     * @param fileName The name of the image file in /assets/
-     */
-    private void setImage(ButtonBase b, String fileName) {
-        String resourcePath = "/assets/" + fileName;
-        var inputStream = getClass().getResourceAsStream(resourcePath);
-
-        if (inputStream == null) {
-            throw new RuntimeException("Resource not found: " + resourcePath);
-        }
-
-        Image image = new Image(inputStream);
-        b.setGraphic(new ImageView(image));
     }
 }

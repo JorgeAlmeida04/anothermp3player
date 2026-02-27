@@ -86,13 +86,7 @@ public class TopContainer {
      * @return List of selected files, or null if cancelled
      */
     public List<File> multipleFileSelection() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select mp3 files");
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home") + "\\Music"));
-        fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("MP3 File", "*.mp3"),
-                new FileChooser.ExtensionFilter("All File", "*.*")
-        );
+        FileChooser fileChooser = createMp3FileChooser("Select mp3 files");
         return fileChooser.showOpenMultipleDialog(window);
     }
 
@@ -164,13 +158,31 @@ public class TopContainer {
      * @return Selected file, or null if cancelled
      */
     private File fileSelection() {
+        FileChooser fileChooser = createMp3FileChooser("Select a mp3 file");
+        return fileChooser.showOpenDialog(window);
+    }
+
+    /**
+     * Creates a pre-configured FileChooser for MP3 files.
+     * Uses platform-independent path separator for the Music directory.
+     * 
+     * @param title The dialog title
+     * @return Configured FileChooser instance
+     */
+    private FileChooser createMp3FileChooser(String title) {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select a mp3 file");
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home") + "\\Music"));
+        fileChooser.setTitle(title);
+
+        // Use File.separator for cross-platform compatibility
+        File musicDir = new File(System.getProperty("user.home") + File.separator + "Music");
+        if (musicDir.exists() && musicDir.isDirectory()) {
+            fileChooser.setInitialDirectory(musicDir);
+        }
+
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("MP3 File", "*.mp3"),
                 new FileChooser.ExtensionFilter("All File", "*.*")
         );
-        return fileChooser.showOpenDialog(window);
+        return fileChooser;
     }
 }

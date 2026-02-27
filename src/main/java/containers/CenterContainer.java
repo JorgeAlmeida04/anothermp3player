@@ -7,7 +7,6 @@ import javafx.concurrent.Task;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.geometry.VPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.control.Label;
@@ -17,22 +16,22 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
-import javafx.scene.layout.TilePane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
 import music_player.MusicPlayerAccess;
 import queue.QueueCell;
 import queue.QueueItem;
 import queue.QueueSongData;
+import util.ImageCache;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -47,6 +46,17 @@ import java.util.function.Consumer;
  * allowing smooth animated transitions between them.
  */
 public class CenterContainer {
+
+    // Default album cover loaded once and cached
+    private static final Image DEFAULT_ALBUM_COVER;
+
+    static {
+        InputStream is = CenterContainer.class.getResourceAsStream("/assets/generic-album-cover.jpeg");
+        if (is == null) {
+            throw new RuntimeException("Default album cover not found: /assets/generic-album-cover.jpeg");
+        }
+        DEFAULT_ALBUM_COVER = new Image(is);
+    }
 
     // Main layout containers
     private GridPane coverQueueContainer;       // Now playing view with cover and queue
@@ -74,6 +84,7 @@ public class CenterContainer {
      * @param onPlaylistLoadedCallback  Callback when a playlist is loaded
      * @param onSongSelectedFromQueue   Callback when a song is selected from queue
      * @param onPlayPauseToggle         Callback for play/pause toggle from cover click
+     * @param loadQueueView             Callback to load queue view
      */
     public CenterContainer(MusicPlayerAccess musicPlayer,
                            Consumer<List<File>> onPlaylistLoadedCallback,
@@ -92,9 +103,8 @@ public class CenterContainer {
      * Must be called after construction before using the container.
      * 
      * @param layout The main BorderPane layout for binding cover dimensions
-     * @throws Exception If initialization fails
      */
-    public void initialize(BorderPane layout) throws Exception {
+    public void initialize(BorderPane layout) {
         initWindowCenter(layout);
         initHomePage();
         createHomeNowPlayingContainer();
@@ -199,11 +209,10 @@ public class CenterContainer {
      * Loading is done in background thread for better performance.
      * 
      * @param playlist        The list of songs to display
-     * @param windowTitleSetter Unused parameter (legacy)
      * @param setTitleCallback Callback to set window title when song is selected
      * @param updateUiCallback Callback to update UI when song is selected
      */
-    public void fillTheHomePage(List<File> playlist, String windowTitleSetter, Consumer<String> setTitleCallback, Runnable updateUiCallback) {
+    public void fillTheHomePage(List<File> playlist, Consumer<String> setTitleCallback, Runnable updateUiCallback) {
         if (playlist == null) return;
 
         // Clear existing content
@@ -219,29 +228,23 @@ public class CenterContainer {
                     int index = i;
                     QueueSongData data = musicPlayer.getQueueData(file);
 
-                    // Load album art or use default
-                    Image img = null;
+                    // Load album art or use cached default
+                    Image img;
                     if (data.imageData != null) {
                         img = new Image(new ByteArrayInputStream(data.imageData), 100, 100, true, true);
                     } else {
-                        // Use default album cover
-                        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/generic-album-cover.jpeg");
-                        img = new Image(new ByteArrayInputStream(inputStream.readAllBytes()), 100, 100, true, true);
+                        img = DEFAULT_ALBUM_COVER;
                     }
 
                     // Create song card
                     VBox vbox = new VBox();
                     vbox.setAlignment(Pos.CENTER);
-                    vbox.setPadding(new Insets(5, 5, 5, 5));
+                    vbox.setPadding(new Insets(5));
 
-                    ImageView imageView = new ImageView();
-                    imageView.setImage(img);
+                    ImageView imageView = new ImageView(img);
 
-                    Label title = new Label();
-                    title.setText(data.title);
-
-                    Label artist = new Label();
-                    artist.setText(data.artist);
+                    Label title = new Label(data.title);
+                    Label artist = new Label(data.artist);
 
                     vbox.getChildren().addAll(imageView, title, artist);
 
@@ -286,10 +289,15 @@ public class CenterContainer {
 
     /**
      * Updates the album cover image from the current song's metadata.
+     * Falls back to default cover if no album image is available.
      */
     public void updateSongCover() {
-        ByteArrayInputStream bis = new ByteArrayInputStream(musicPlayer.getSongAlbumImage());
-        this.songCover.setImage(new Image(bis, 400, 400, true, true));
+        byte[] albumImage = musicPlayer.getSongAlbumImage();
+        if (albumImage != null) {
+            this.songCover.setImage(new Image(new ByteArrayInputStream(albumImage), 400, 400, true, true));
+        } else {
+            this.songCover.setImage(DEFAULT_ALBUM_COVER);
+        }
     }
 
     // ==================== Initialization Methods ====================
@@ -298,9 +306,8 @@ public class CenterContainer {
      * Initializes the now playing view with album cover and queue.
      * 
      * @param layout The main BorderPane for binding cover dimensions
-     * @throws Exception If initialization fails
      */
-    private void initWindowCenter(BorderPane layout) throws Exception {
+    private void initWindowCenter(BorderPane layout) {
         // Create container for now playing view
         this.coverQueueContainer = new GridPane();
         this.coverQueueContainer.getStyleClass().add("cover-queue-container");
@@ -389,7 +396,7 @@ public class CenterContainer {
 
                 // Start playback
                 this.musicPlayer.start();
-                setImage(playPauseButton, "new-pause.png");
+                ImageCache.setButtonImage(playPauseButton, "new-pause.png");
             }
         });
     }
@@ -409,15 +416,12 @@ public class CenterContainer {
     /**
      * Initializes the album cover image view.
      * Binds size to main layout and adds click handler for play/pause.
+     * Uses cached default album cover instead of reading from disk each time.
      * 
      * @param layout The main BorderPane for size binding
-     * @throws Exception If default image cannot be loaded
      */
-    private void setSongCover(BorderPane layout) throws Exception {
-        // Load default album cover
-        FileInputStream inputStream = new FileInputStream("src/main/resources/assets/generic-album-cover.jpeg");
-        Image image = new Image(inputStream);
-        this.songCover = new ImageView(image);
+    private void setSongCover(BorderPane layout) {
+        this.songCover = new ImageView(DEFAULT_ALBUM_COVER);
         this.songCover.setPreserveRatio(true);
 
         // Bind size to 70% of main layout
@@ -429,11 +433,10 @@ public class CenterContainer {
             if (this.musicPlayer.hasClip()) {
                 if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
                     this.musicPlayer.stop();
-                    if (onPlayPauseToggle != null) onPlayPauseToggle.run();
                 } else {
                     this.musicPlayer.start();
-                    if (onPlayPauseToggle != null) onPlayPauseToggle.run();
                 }
+                if (onPlayPauseToggle != null) onPlayPauseToggle.run();
             }
         });
     }
@@ -485,23 +488,5 @@ public class CenterContainer {
         this.mainPage.prefHeightProperty().bind(scrollPane.heightProperty().subtract(2));
 
         this.homeNowPlayingContainer.getChildren().add(scrollPane);
-    }
-
-    /**
-     * Sets the icon image for a button from the assets folder.
-     * 
-     * @param b        The button to set the image on
-     * @param fileName The name of the image file in /assets/
-     */
-    private void setImage(ButtonBase b, String fileName) {
-        String resourcePath = "/assets/" + fileName;
-        var inputStream = getClass().getResourceAsStream(resourcePath);
-
-        if (inputStream == null) {
-            throw new RuntimeException("Resource not found: " + resourcePath);
-        }
-
-        Image image = new Image(inputStream);
-        b.setGraphic(new ImageView(image));
     }
 }
