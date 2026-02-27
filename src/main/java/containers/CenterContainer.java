@@ -12,6 +12,7 @@ import javafx.scene.control.ButtonBase;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.effect.GaussianBlur;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -23,6 +24,8 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import music_player.MusicPlayerAccess;
 import queue.QueueCell;
 import queue.QueueItem;
@@ -60,6 +63,9 @@ public class CenterContainer {
 
     // Main layout containers
     private GridPane coverQueueContainer;       // Now playing view with cover and queue
+    private StackPane nowPlayingWrapper;        // Wrapper with blurred background + coverQueueContainer
+    private ImageView blurredBackground;        // Blurred album cover background for now playing
+    private Rectangle darkOverlay;              // Semi-transparent dark overlay for readability
     private ListView<QueueItem> queue;          // List view showing upcoming songs
     private ImageView songCover;                // Album artwork display
     private TilePane mainPage;                  // Home page with song grid
@@ -101,17 +107,30 @@ public class CenterContainer {
     /**
      * Initializes all components of the center container.
      * Must be called after construction before using the container.
-     * 
+     *
      * @param layout The main BorderPane layout for binding cover dimensions
      */
     public void initialize(BorderPane layout) {
         initWindowCenter(layout);
+        initBlurredBackground(layout);
         initHomePage();
         createHomeNowPlayingContainer();
     }
 
     // ==================== Getters ====================
 
+    /**
+     * Returns the now playing wrapper (StackPane with blurred background + content).
+     * This is the node that should be animated/toggled for the now playing view.
+     */
+    public StackPane getNowPlayingWrapper() {
+        return nowPlayingWrapper;
+    }
+
+    /**
+     * Returns the inner cover/queue GridPane container.
+     * @deprecated Use {@link #getNowPlayingWrapper()} for external references.
+     */
     public GridPane getCoverQueueContainer() {
         return coverQueueContainer;
     }
@@ -289,32 +308,102 @@ public class CenterContainer {
 
     /**
      * Updates the album cover image from the current song's metadata.
+     * Also updates the blurred background for the now playing view.
      * Falls back to default cover if no album image is available.
      */
     public void updateSongCover() {
         byte[] albumImage = musicPlayer.getSongAlbumImage();
+        Image coverImage;
         if (albumImage != null) {
-            this.songCover.setImage(new Image(new ByteArrayInputStream(albumImage), 400, 400, true, true));
+            coverImage = new Image(new ByteArrayInputStream(albumImage), 400, 400, true, true);
         } else {
-            this.songCover.setImage(DEFAULT_ALBUM_COVER);
+            coverImage = DEFAULT_ALBUM_COVER;
+        }
+        this.songCover.setImage(coverImage);
+        updateBlurredBackground(coverImage);
+    }
+
+    /**
+     * Updates the blurred background ImageView with the given image.
+     * The image is displayed scaled-to-fill with a heavy Gaussian blur.
+     *
+     * @param image The album cover image to use as background
+     */
+    private void updateBlurredBackground(Image image) {
+        if (this.blurredBackground != null) {
+            this.blurredBackground.setImage(image);
         }
     }
 
     // ==================== Initialization Methods ====================
 
     /**
+     * Initializes the blurred background layer for the now playing view.
+     * Creates a StackPane wrapper containing:
+     * 1. A blurred ImageView (album cover scaled to fill)
+     * 2. A dark semi-transparent overlay for readability
+     * 3. The coverQueueContainer (actual content) on top
+     *
+     * @param layout The main BorderPane for binding dimensions
+     */
+    private void initBlurredBackground(BorderPane layout) {
+        // Create the wrapper StackPane first so we can bind children to it
+        this.nowPlayingWrapper = new StackPane();
+        this.nowPlayingWrapper.setAlignment(Pos.CENTER);
+
+        // Create the blurred background ImageView
+        this.blurredBackground = new ImageView(DEFAULT_ALBUM_COVER);
+        this.blurredBackground.setPreserveRatio(false); // Stretch to fill
+        this.blurredBackground.setSmooth(true);
+        this.blurredBackground.setEffect(new GaussianBlur(80)); // Heavy blur
+        this.blurredBackground.setManaged(false); // Don't influence wrapper's layout size
+
+        // Bind to the wrapper's own size so it fills exactly the now playing area
+        this.blurredBackground.fitWidthProperty().bind(this.nowPlayingWrapper.widthProperty());
+        this.blurredBackground.fitHeightProperty().bind(this.nowPlayingWrapper.heightProperty());
+
+        // Create a dark semi-transparent overlay for readability
+        this.darkOverlay = new Rectangle();
+        this.darkOverlay.setFill(Color.rgb(0, 0, 0, 0.55)); // 55% black overlay
+        this.darkOverlay.setManaged(false); // Don't influence wrapper's layout size
+        this.darkOverlay.widthProperty().bind(this.nowPlayingWrapper.widthProperty());
+        this.darkOverlay.heightProperty().bind(this.nowPlayingWrapper.heightProperty());
+
+        // Stack layers: blurred bg -> dark overlay -> content
+        this.nowPlayingWrapper.getChildren().addAll(
+                this.blurredBackground,
+                this.darkOverlay,
+                this.coverQueueContainer
+        );
+
+        // Clip the wrapper to its own bounds to prevent overflow onto bottom bar
+        Rectangle clip = new Rectangle();
+        clip.widthProperty().bind(this.nowPlayingWrapper.widthProperty());
+        clip.heightProperty().bind(this.nowPlayingWrapper.heightProperty());
+        this.nowPlayingWrapper.setClip(clip);
+
+        // Transfer initial state from coverQueueContainer to wrapper
+        this.nowPlayingWrapper.setVisible(false);
+        this.nowPlayingWrapper.setMouseTransparent(true);
+        this.nowPlayingWrapper.setManaged(false);
+        this.nowPlayingWrapper.setTranslateY(10000);
+
+        // The coverQueueContainer no longer needs to manage its own visibility/position
+        this.coverQueueContainer.setVisible(true);
+        this.coverQueueContainer.setMouseTransparent(false);
+        this.coverQueueContainer.setManaged(true);
+        this.coverQueueContainer.setTranslateY(0);
+    }
+
+    /**
      * Initializes the now playing view with album cover and queue.
-     * 
+     *
      * @param layout The main BorderPane for binding cover dimensions
      */
     private void initWindowCenter(BorderPane layout) {
         // Create container for now playing view
         this.coverQueueContainer = new GridPane();
         this.coverQueueContainer.getStyleClass().add("cover-queue-container");
-        this.coverQueueContainer.setVisible(false);          // Initially hidden
-        this.coverQueueContainer.setMouseTransparent(true);  // Cannot be clicked initially
-        this.coverQueueContainer.setManaged(false);          // Not part of layout initially
-        this.coverQueueContainer.setTranslateY(10000);       // Positioned off-screen
         this.coverQueueContainer.setVgap(1);
         this.coverQueueContainer.setMaxWidth(Double.MAX_VALUE);
         this.coverQueueContainer.setAlignment(Pos.CENTER);
