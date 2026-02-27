@@ -22,7 +22,7 @@
 }
 
 .cover-queue-container {
-    -fx-background-color: #121212; /* Solid dark background to prevent transparency */
+    -fx-background-color: transparent; /* Transparent to show blurred album cover background */
 }
 
 .home-page-load-songs-button{

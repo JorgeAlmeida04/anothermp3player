@@ -85,6 +85,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         // Configure main window
         window = stage;
         window.setTitle("No Song Selected ~ Another MP3 Player");
+        window.getIcons().add(ImageCache.getImage("amp3p.png"));
         window.setOnCloseRequest(e -> {
             System.out.println("Closing");
             window.close();
@@ -117,10 +118,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         CustomCaption.setImmersiveDarkMode(this.window, true);
 
         // Initialize now playing view state (hidden by default)
-        this.centerContainer.getCoverQueueContainer().setVisible(false);
-        this.centerContainer.getCoverQueueContainer().setMouseTransparent(true);
+        this.centerContainer.getNowPlayingWrapper().setVisible(false);
+        this.centerContainer.getNowPlayingWrapper().setMouseTransparent(true);
         Platform.runLater(() -> {
-            this.centerContainer.getCoverQueueContainer().setTranslateY(2000);
+            this.centerContainer.getNowPlayingWrapper().setTranslateY(2000);
         });
     }
 
@@ -162,7 +163,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             this::updateSongLabels,
             this::onPrevSong
         );
-        bottomContainer.initialize(centerContainer.getCoverQueueContainer());
+        bottomContainer.initialize(centerContainer.getNowPlayingWrapper());
         
         // Set up callbacks for center container UI updates
         centerContainer.setUpdateCallbacks(
