@@ -29,6 +29,7 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     private String currentTitle;
     private String currentArtist;
     private byte[] currentAlbumImage;
+    private double currentVolume = 10.0;
 
     public MusicPlayerModel() {
         this.clip = null;
@@ -68,6 +69,7 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
             this.clip = AudioSystem.getClip();
             this.clip.open(decodeStream);
             this.clip.setFramePosition(0);
+            volumeChange(this.currentVolume);
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -197,6 +199,7 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
 
     //Changes the clips loudness
     public void volumeChange(double sliderValue) {
+        this.currentVolume = sliderValue;
         if (hasClip()) {
             FloatControl gainControl = (FloatControl) this.clip.getControl(FloatControl.Type.MASTER_GAIN);
 
@@ -356,6 +359,10 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     //Checks whether there is a current playlist
     public boolean hasPlaylist(){
         return this.playlist != null;
+    }
+
+    public double getCurrentVolume() {
+        return this.currentVolume;
     }
 
     public void announceChanges(){

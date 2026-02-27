@@ -19,6 +19,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.TilePane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -51,7 +52,7 @@ public class CenterContainer {
     private GridPane coverQueueContainer;       // Now playing view with cover and queue
     private ListView<QueueItem> queue;          // List view showing upcoming songs
     private ImageView songCover;                // Album artwork display
-    private FlowPane mainPage;                  // Home page with song grid
+    private TilePane mainPage;                  // Home page with song grid
     private StackPane homeNowPlayingContainer;  // Root container stacking both views
 
     // Dependencies and callbacks
@@ -59,6 +60,7 @@ public class CenterContainer {
     private final Consumer<List<File>> onPlaylistLoadedCallback; // Callback when playlist is loaded
     private final Consumer<File> onSongSelectedFromQueue;      // Callback when song selected from queue
     private final Runnable onPlayPauseToggle;                  // Callback for play/pause toggle
+    private final Runnable loadQueueViewCallback;
     
     // UI update callbacks (set after initialization)
     private Runnable updateVolumeSliderCallback;
@@ -76,11 +78,13 @@ public class CenterContainer {
     public CenterContainer(MusicPlayerAccess musicPlayer,
                            Consumer<List<File>> onPlaylistLoadedCallback,
                            Consumer<File> onSongSelectedFromQueue,
-                           Runnable onPlayPauseToggle) {
+                           Runnable onPlayPauseToggle,
+                           Runnable loadQueueView) {
         this.musicPlayer = musicPlayer;
         this.onPlaylistLoadedCallback = onPlaylistLoadedCallback;
         this.onSongSelectedFromQueue = onSongSelectedFromQueue;
         this.onPlayPauseToggle = onPlayPauseToggle;
+        this.loadQueueViewCallback = loadQueueView;
     }
 
     /**
@@ -102,7 +106,7 @@ public class CenterContainer {
         return coverQueueContainer;
     }
 
-    public FlowPane getMainPage() {
+    public TilePane getMainPage() {
         return mainPage;
     }
 
@@ -204,19 +208,7 @@ public class CenterContainer {
 
         // Clear existing content
         this.mainPage.getChildren().clear();
-        this.mainPage.setVgap(7);
-
-        // Adjust horizontal gap based on playlist size
-        if (playlist.size() < 8) {
-            this.mainPage.setHgap(playlist.size());
-        } else {
-            this.mainPage.setHgap(playlist.size() / 8);
-        }
-
-        this.mainPage.setAlignment(Pos.CENTER);
-        this.mainPage.setColumnHalignment(HPos.CENTER);
-        this.mainPage.setRowValignment(VPos.CENTER);
-        this.mainPage.setPadding(new Insets(5, 5, 5, 5));
+        this.mainPage.setPadding(new Insets(20));
 
         // Background task to load song metadata and create UI elements
         Task<Void> metadataTask = new Task<>() {
@@ -263,9 +255,6 @@ public class CenterContainer {
                             // Load and play selected song
                             musicPlayer.setPlaylistPosition(index);
                             musicPlayer.changeSong(playlist.get(index));
-                            if (onPlaylistLoadedCallback != null) {
-                                onPlaylistLoadedCallback.accept(playlist);
-                            }
 
                             // Update window title and UI
                             setTitleCallback.accept(playlist.get(index).getName() + " ~ Another MP3 Player");
@@ -273,6 +262,11 @@ public class CenterContainer {
                                 updateUiCallback.run();
                             }
 
+                            if(loadQueueViewCallback != null) {
+                                loadQueueViewCallback.run();
+                            }
+
+                            updateQueueSelection();
                             musicPlayer.start();
                         });
                         mainPage.getChildren().add(vbox);
@@ -401,6 +395,18 @@ public class CenterContainer {
     }
 
     /**
+     * Updates the queue selection to highlight the current song based on playlist position.
+     * This should be called whenever the song changes automatically.
+     */
+    public void updateQueueSelection() {
+        int position = this.musicPlayer.getPlaylistPosition();
+        if (position >= 0 && position < this.queue.getItems().size()) {
+            this.queue.getSelectionModel().select(position);
+            this.queue.scrollTo(position);
+        }
+    }
+
+    /**
      * Initializes the album cover image view.
      * Binds size to main layout and adds click handler for play/pause.
      * 
@@ -436,8 +442,11 @@ public class CenterContainer {
      * Initializes the home page container.
      */
     private void initHomePage() {
-        this.mainPage = new FlowPane();
+        this.mainPage = new TilePane();
         this.mainPage.setAlignment(Pos.CENTER);
+        this.mainPage.setPrefColumns(4);
+        this.mainPage.setHgap(20);
+        this.mainPage.setVgap(20);
     }
 
     /**

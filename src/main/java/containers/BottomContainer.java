@@ -73,6 +73,8 @@ public class BottomContainer {
     private final Runnable updateSongLabelsCallback;       // Callback to update song labels
     private final Consumer<File> onPrevSongCallback;       // Callback when previous song is loaded
 
+    private double currentVolume = 10.0; // Keep track of the volume choice of the user
+
     /**
      * Constructs a new BottomContainer with the required dependencies and callbacks.
      * 
@@ -148,7 +150,8 @@ public class BottomContainer {
     public void updateVolumeSlider() {
         this.volumeSlider.setMin(0);
         this.volumeSlider.setMax(100);
-        this.volumeSlider.setValue(10);
+        this.currentVolume = this.musicPlayer.getCurrentVolume();
+        this.volumeSlider.setValue(this.currentVolume);
     }
 
     /**
@@ -347,6 +350,7 @@ public class BottomContainer {
         this.volumeSlider.setOrientation(javafx.geometry.Orientation.HORIZONTAL);
         this.volumeSlider.setMaxHeight(80);
         this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            this.currentVolume = newValue.doubleValue();
             this.musicPlayer.volumeChange(newValue.doubleValue());
         });
         this.volumeSlider.getStyleClass().add("volume-slider");

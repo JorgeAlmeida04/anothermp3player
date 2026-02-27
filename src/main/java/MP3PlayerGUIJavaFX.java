@@ -141,7 +141,8 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                 (MusicPlayerAccess) musicPlayer,
             this::onPlaylistLoaded,
             this::onSongSelectedFromQueue,
-            this::onPlayPauseToggle
+            this::onPlayPauseToggle,
+                this::loadQueueView
         );
         centerContainer.initialize(layout);
         
@@ -197,6 +198,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             updateSongLabels();
             updateVolumeSlider();
             updateSongSlider();
+            centerContainer.updateQueueSelection();
         }
     }
 
@@ -208,7 +210,18 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
      */
     private void onPlaylistLoaded(List<File> playlist) {
         this.playlist = playlist;
-        this.musicPlayer.setPlaylist(playlist);
+        this.musicPlayer.setPlaylist(this.playlist);
+        this.centerContainer.fillTheHomePage(
+                this.playlist,
+                "",
+                this::setWindowTitle,
+                () -> {
+                    updateVolumeSlider();
+                    updateSongSlider();
+                    updateSongLabels();
+                    setImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
+                }
+        );
     }
 
     /**
@@ -235,6 +248,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         updateVolumeSlider();
         updateSongSlider();
         updateSongLabels();
+        centerContainer.updateQueueSelection();
     }
 
     /**
@@ -269,6 +283,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             updateSongLabels();
             updateVolumeSlider();
             updateSongSlider();
+            centerContainer.updateQueueSelection();
             this.musicPlayer.start();
 
             // Resume playback if was playing before
