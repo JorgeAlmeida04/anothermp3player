@@ -2,6 +2,14 @@ package containers;
 
 import eu.iamgio.animated.binding.Animated;
 import eu.iamgio.animated.binding.presets.AnimatedScale;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Consumer;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.HPos;
@@ -32,19 +40,13 @@ import queue.QueueItem;
 import queue.QueueSongData;
 import util.ImageCache;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.InputStream;
-import java.util.List;
-import java.util.function.Consumer;
-
 /**
  * CenterContainer manages the main content area of the MP3 player UI.
  * This includes:
  * - Home page with song grid display
  * - Now Playing view with album cover and queue
  * - Animated transitions between views
- * 
+ *
  * The container uses a StackPane to layer the home page and now playing views,
  * allowing smooth animated transitions between them.
  */
@@ -54,30 +56,43 @@ public class CenterContainer {
     private static final Image DEFAULT_ALBUM_COVER;
 
     static {
-        InputStream is = CenterContainer.class.getResourceAsStream("/assets/generic-album-cover.jpeg");
+        InputStream is = CenterContainer.class.getResourceAsStream(
+            "/assets/generic-album-cover.jpeg"
+        );
         if (is == null) {
-            throw new RuntimeException("Default album cover not found: /assets/generic-album-cover.jpeg");
+            throw new RuntimeException(
+                "Default album cover not found: /assets/generic-album-cover.jpeg"
+            );
         }
         DEFAULT_ALBUM_COVER = new Image(is);
     }
 
     // Main layout containers
-    private GridPane coverQueueContainer;       // Now playing view with cover and queue
-    private StackPane nowPlayingWrapper;        // Wrapper with blurred background + coverQueueContainer
-    private ImageView blurredBackground;        // Blurred album cover background for now playing
-    private Rectangle darkOverlay;              // Semi-transparent dark overlay for readability
-    private ListView<QueueItem> queue;          // List view showing upcoming songs
-    private ImageView songCover;                // Album artwork display
-    private TilePane mainPage;                  // Home page with song grid
-    private StackPane homeNowPlayingContainer;  // Root container stacking both views
+    private GridPane coverQueueContainer; // Now playing view with cover and queue
+    private StackPane nowPlayingWrapper; // Wrapper with blurred background + coverQueueContainer
+    private ImageView blurredBackground; // Blurred album cover background for now playing
+    private Rectangle darkOverlay; // Semi-transparent dark overlay for readability
+    private ListView<QueueItem> queue; // List view showing upcoming songs
+    private ImageView songCover; // Album artwork display
+    private TilePane mainPage; // Home page with song grid/list
+    private StackPane homeNowPlayingContainer; // Root container stacking both views
+
+    // Home page controls/state
+    private HBox homeControlsBar;
+    private javafx.scene.control.ComboBox<String> sortComboBox;
+    private Button viewToggleButton;
+    private boolean isGridView = true;
+    private static final String SORT_TITLE = "Title (A-Z)";
+    private static final String SORT_ARTIST = "Artist (A-Z)";
+    private static final String SORT_ALBUM = "Album (A-Z)";
 
     // Dependencies and callbacks
-    private final MusicPlayerAccess musicPlayer;               // Interface to music player model
+    private final MusicPlayerAccess musicPlayer; // Interface to music player model
     private final Consumer<List<File>> onPlaylistLoadedCallback; // Callback when playlist is loaded
-    private final Consumer<File> onSongSelectedFromQueue;      // Callback when song selected from queue
-    private final Runnable onPlayPauseToggle;                  // Callback for play/pause toggle
+    private final Consumer<File> onSongSelectedFromQueue; // Callback when song selected from queue
+    private final Runnable onPlayPauseToggle; // Callback for play/pause toggle
     private final Runnable loadQueueViewCallback;
-    
+
     // UI update callbacks (set after initialization)
     private Runnable updateVolumeSliderCallback;
     private Runnable updateSongSliderCallback;
@@ -85,18 +100,20 @@ public class CenterContainer {
 
     /**
      * Constructs a new CenterContainer with the required dependencies and callbacks.
-     * 
+     *
      * @param musicPlayer               Interface to the music player model
      * @param onPlaylistLoadedCallback  Callback when a playlist is loaded
      * @param onSongSelectedFromQueue   Callback when a song is selected from queue
      * @param onPlayPauseToggle         Callback for play/pause toggle from cover click
      * @param loadQueueView             Callback to load queue view
      */
-    public CenterContainer(MusicPlayerAccess musicPlayer,
-                           Consumer<List<File>> onPlaylistLoadedCallback,
-                           Consumer<File> onSongSelectedFromQueue,
-                           Runnable onPlayPauseToggle,
-                           Runnable loadQueueView) {
+    public CenterContainer(
+        MusicPlayerAccess musicPlayer,
+        Consumer<List<File>> onPlaylistLoadedCallback,
+        Consumer<File> onSongSelectedFromQueue,
+        Runnable onPlayPauseToggle,
+        Runnable loadQueueView
+    ) {
         this.musicPlayer = musicPlayer;
         this.onPlaylistLoadedCallback = onPlaylistLoadedCallback;
         this.onSongSelectedFromQueue = onSongSelectedFromQueue;
@@ -153,12 +170,16 @@ public class CenterContainer {
 
     /**
      * Sets the callbacks for UI updates when songs change.
-     * 
+     *
      * @param updateVolumeSlider Callback to update volume slider
      * @param updateSongSlider   Callback to update song position slider
      * @param updateSongLabels   Callback to update song info labels
      */
-    public void setUpdateCallbacks(Runnable updateVolumeSlider, Runnable updateSongSlider, Runnable updateSongLabels) {
+    public void setUpdateCallbacks(
+        Runnable updateVolumeSlider,
+        Runnable updateSongSlider,
+        Runnable updateSongLabels
+    ) {
         this.updateVolumeSliderCallback = updateVolumeSlider;
         this.updateSongSliderCallback = updateSongSlider;
         this.updateSongLabelsCallback = updateSongLabels;
@@ -169,7 +190,7 @@ public class CenterContainer {
     /**
      * Loads the queue view with songs from the playlist.
      * Performs initial fill with basic info, then updates with metadata in background.
-     * 
+     *
      * @param playlist The list of songs to display in the queue
      */
     public void loadQueueView(List<File> playlist) {
@@ -180,7 +201,9 @@ public class CenterContainer {
 
         // Initial fill with file names (fast)
         for (File file : playlist) {
-            this.queue.getItems().add(new QueueItem(file, file.getName(), "", "", null));
+            this.queue.getItems().add(
+                new QueueItem(file, file.getName(), "", "", null)
+            );
         }
 
         // Background task to load metadata for each song
@@ -194,10 +217,22 @@ public class CenterContainer {
                     // Create thumbnail for queue item
                     Image img = null;
                     if (data.imageData != null) {
-                        img = new Image(new ByteArrayInputStream(data.imageData), 40, 40, true, true);
+                        img = new Image(
+                            new ByteArrayInputStream(data.imageData),
+                            40,
+                            40,
+                            true,
+                            true
+                        );
                     }
 
-                    QueueItem item = new QueueItem(file, data.title, data.artist, data.duration, img);
+                    QueueItem item = new QueueItem(
+                        file,
+                        data.title,
+                        data.artist,
+                        data.duration,
+                        img
+                    );
 
                     // Update UI on JavaFX thread
                     final int index = i;
@@ -226,80 +261,67 @@ public class CenterContainer {
      * Populates the home page with a grid of songs from the playlist.
      * Each song is displayed with album art, title, and artist.
      * Loading is done in background thread for better performance.
-     * 
+     *
      * @param playlist        The list of songs to display
      * @param setTitleCallback Callback to set window title when song is selected
      * @param updateUiCallback Callback to update UI when song is selected
      */
-    public void fillTheHomePage(List<File> playlist, Consumer<String> setTitleCallback, Runnable updateUiCallback) {
+    public void fillTheHomePage(
+        List<File> playlist,
+        Consumer<String> setTitleCallback,
+        Runnable updateUiCallback
+    ) {
         if (playlist == null) return;
 
         // Clear existing content
         this.mainPage.getChildren().clear();
         this.mainPage.setPadding(new Insets(20));
 
-        // Background task to load song metadata and create UI elements
-        Task<Void> metadataTask = new Task<>() {
+        // Background task to load metadata first, then render sorted/view-mode UI
+        Task<List<HomeSongItem>> metadataTask = new Task<>() {
             @Override
-            protected Void call() throws Exception {
+            protected List<HomeSongItem> call() throws Exception {
+                List<HomeSongItem> items = new ArrayList<>();
+
                 for (int i = 0; i < playlist.size(); i++) {
                     File file = playlist.get(i);
-                    int index = i;
                     QueueSongData data = musicPlayer.getQueueData(file);
 
-                    // Load album art or use cached default
                     Image img;
                     if (data.imageData != null) {
-                        img = new Image(new ByteArrayInputStream(data.imageData), 100, 100, true, true);
+                        img = new Image(
+                            new ByteArrayInputStream(data.imageData),
+                            100,
+                            100,
+                            true,
+                            true
+                        );
                     } else {
                         img = DEFAULT_ALBUM_COVER;
                     }
 
-                    // Create song card
-                    VBox vbox = new VBox();
-                    vbox.setAlignment(Pos.CENTER);
-                    vbox.setPadding(new Insets(5));
+                    items.add(
+                        new HomeSongItem(
+                            file,
+                            data.title,
+                            data.artist,
+                            data.album,
+                            data.duration,
+                            img
+                        )
+                    );
 
-                    ImageView imageView = new ImageView(img);
-
-                    Label title = new Label(data.title);
-                    Label artist = new Label(data.artist);
-
-                    vbox.getChildren().addAll(imageView, title, artist);
-
-                    // Add click handler and add to UI on JavaFX thread
-                    Platform.runLater(() -> {
-                        vbox.setOnMouseClicked(event -> {
-                            // Stop current song if playing
-                            if (musicPlayer.isRunning()) {
-                                musicPlayer.stop();
-                            }
-                            // Load and play selected song
-                            musicPlayer.setPlaylistPosition(index);
-                            musicPlayer.changeSong(playlist.get(index));
-
-                            // Update window title and UI
-                            setTitleCallback.accept(playlist.get(index).getName() + " ~ Another MP3 Player");
-                            if (updateUiCallback != null) {
-                                updateUiCallback.run();
-                            }
-
-                            if(loadQueueViewCallback != null) {
-                                loadQueueViewCallback.run();
-                            }
-
-                            updateQueueSelection();
-                            musicPlayer.start();
-                        });
-                        mainPage.getChildren().add(vbox);
-                    });
-
-                    // Small delay to prevent UI freezing
                     Thread.sleep(10);
                 }
-                return null;
+
+                return items;
             }
         };
+
+        metadataTask.setOnSucceeded(event -> {
+            List<HomeSongItem> items = metadataTask.getValue();
+            renderHomePageItems(items, setTitleCallback, updateUiCallback);
+        });
 
         Thread thread = new Thread(metadataTask);
         thread.setDaemon(true);
@@ -315,7 +337,13 @@ public class CenterContainer {
         byte[] albumImage = musicPlayer.getSongAlbumImage();
         Image coverImage;
         if (albumImage != null) {
-            coverImage = new Image(new ByteArrayInputStream(albumImage), 400, 400, true, true);
+            coverImage = new Image(
+                new ByteArrayInputStream(albumImage),
+                400,
+                400,
+                true,
+                true
+            );
         } else {
             coverImage = DEFAULT_ALBUM_COVER;
         }
@@ -359,21 +387,29 @@ public class CenterContainer {
         this.blurredBackground.setManaged(false); // Don't influence wrapper's layout size
 
         // Bind to the wrapper's own size so it fills exactly the now playing area
-        this.blurredBackground.fitWidthProperty().bind(this.nowPlayingWrapper.widthProperty());
-        this.blurredBackground.fitHeightProperty().bind(this.nowPlayingWrapper.heightProperty());
+        this.blurredBackground.fitWidthProperty().bind(
+            this.nowPlayingWrapper.widthProperty()
+        );
+        this.blurredBackground.fitHeightProperty().bind(
+            this.nowPlayingWrapper.heightProperty()
+        );
 
         // Create a dark semi-transparent overlay for readability
         this.darkOverlay = new Rectangle();
         this.darkOverlay.setFill(Color.rgb(0, 0, 0, 0.55)); // 55% black overlay
         this.darkOverlay.setManaged(false); // Don't influence wrapper's layout size
-        this.darkOverlay.widthProperty().bind(this.nowPlayingWrapper.widthProperty());
-        this.darkOverlay.heightProperty().bind(this.nowPlayingWrapper.heightProperty());
+        this.darkOverlay.widthProperty().bind(
+            this.nowPlayingWrapper.widthProperty()
+        );
+        this.darkOverlay.heightProperty().bind(
+            this.nowPlayingWrapper.heightProperty()
+        );
 
         // Stack layers: blurred bg -> dark overlay -> content
         this.nowPlayingWrapper.getChildren().addAll(
-                this.blurredBackground,
-                this.darkOverlay,
-                this.coverQueueContainer
+            this.blurredBackground,
+            this.darkOverlay,
+            this.coverQueueContainer
         );
 
         // Clip the wrapper to its own bounds to prevent overflow onto bottom bar
@@ -409,7 +445,8 @@ public class CenterContainer {
         this.coverQueueContainer.setAlignment(Pos.CENTER);
 
         // Two columns: cover (70%) and queue (30%)
-        ColumnConstraints col1 = new ColumnConstraints(), col2 = new ColumnConstraints();
+        ColumnConstraints col1 = new ColumnConstraints(),
+            col2 = new ColumnConstraints();
         col1.setPercentWidth(70);
         col1.setHalignment(HPos.CENTER);
         col2.setPercentWidth(30);
@@ -418,7 +455,10 @@ public class CenterContainer {
 
         // Initialize album cover with animation wrapper
         setSongCover(layout);
-        Animated animatedCover = new Animated(this.songCover, new AnimatedScale());
+        Animated animatedCover = new Animated(
+            this.songCover,
+            new AnimatedScale()
+        );
 
         // Initialize queue list
         initQueueView();
@@ -451,7 +491,9 @@ public class CenterContainer {
      */
     private void initQueueView() {
         this.queue = new ListView<>();
-        this.queue.prefHeightProperty().bind(this.songCover.fitHeightProperty());
+        this.queue.prefHeightProperty().bind(
+            this.songCover.fitHeightProperty()
+        );
         this.queue.getStyleClass().add("queue");
         this.queue.setCellFactory(param -> new QueueCell());
     }
@@ -459,15 +501,23 @@ public class CenterContainer {
     /**
      * Sets up the click handler for queue item selection.
      * Must be called after playlist is loaded.
-     * 
+     *
      * @param playlist         The current playlist
      * @param setTitleCallback Callback to update window title
      * @param playPauseButton  Reference to play/pause button for icon update
      */
-    public void setupQueueSelectionHandler(List<File> playlist, Consumer<String> setTitleCallback, Button playPauseButton) {
+    public void setupQueueSelectionHandler(
+        List<File> playlist,
+        Consumer<String> setTitleCallback,
+        Button playPauseButton
+    ) {
         this.queue.setOnMouseClicked(event -> {
             int index = this.queue.getSelectionModel().getSelectedIndex();
-            if (index >= 0 && index < this.queue.getItems().size() && playlist != null) {
+            if (
+                index >= 0 &&
+                index < this.queue.getItems().size() &&
+                playlist != null
+            ) {
                 // Stop current playback
                 if (this.musicPlayer.isRunning()) {
                     this.musicPlayer.stop();
@@ -478,10 +528,18 @@ public class CenterContainer {
                 this.musicPlayer.changeSong(playlist.get(index));
 
                 // Update UI
-                setTitleCallback.accept(playlist.get(index).getName() + " ~ Another MP3 Player");
-                if (updateVolumeSliderCallback != null) updateVolumeSliderCallback.run();
-                if (updateSongSliderCallback != null) updateSongSliderCallback.run();
-                if (updateSongLabelsCallback != null) updateSongLabelsCallback.run();
+                setTitleCallback.accept(
+                    playlist.get(index).getName() + " ~ Another MP3 Player"
+                );
+                if (
+                    updateVolumeSliderCallback != null
+                ) updateVolumeSliderCallback.run();
+                if (
+                    updateSongSliderCallback != null
+                ) updateSongSliderCallback.run();
+                if (
+                    updateSongLabelsCallback != null
+                ) updateSongLabelsCallback.run();
 
                 // Start playback
                 this.musicPlayer.start();
@@ -506,7 +564,7 @@ public class CenterContainer {
      * Initializes the album cover image view.
      * Binds size to main layout and adds click handler for play/pause.
      * Uses cached default album cover instead of reading from disk each time.
-     * 
+     *
      * @param layout The main BorderPane for size binding
      */
     private void setSongCover(BorderPane layout) {
@@ -514,8 +572,12 @@ public class CenterContainer {
         this.songCover.setPreserveRatio(true);
 
         // Bind size to 70% of main layout
-        this.songCover.fitWidthProperty().bind(layout.widthProperty().multiply(0.7));
-        this.songCover.fitHeightProperty().bind(layout.heightProperty().multiply(0.7));
+        this.songCover.fitWidthProperty().bind(
+            layout.widthProperty().multiply(0.7)
+        );
+        this.songCover.fitHeightProperty().bind(
+            layout.heightProperty().multiply(0.7)
+        );
 
         // Click on cover to toggle play/pause
         this.songCover.setOnMouseClicked(event -> {
@@ -535,18 +597,43 @@ public class CenterContainer {
      */
     private void initHomePage() {
         this.mainPage = new TilePane();
-        this.mainPage.setAlignment(Pos.CENTER);
+        this.mainPage.setAlignment(Pos.TOP_LEFT);
         this.mainPage.setPrefColumns(4);
         this.mainPage.setHgap(20);
         this.mainPage.setVgap(20);
+
+        this.homeControlsBar = new HBox();
+        this.homeControlsBar.setSpacing(12);
+        this.homeControlsBar.setPadding(new Insets(0, 0, 12, 0));
+        this.homeControlsBar.setAlignment(Pos.CENTER_LEFT);
+        this.homeControlsBar.getStyleClass().add("home-controls-bar");
+
+        this.viewToggleButton = new Button("List View");
+        this.viewToggleButton.getStyleClass().add("home-view-toggle-button");
+
+        this.sortComboBox = new javafx.scene.control.ComboBox<>();
+        this.sortComboBox.getItems().addAll(
+            SORT_TITLE,
+            SORT_ARTIST,
+            SORT_ALBUM
+        );
+        this.sortComboBox.setValue(SORT_TITLE);
+        this.sortComboBox.getStyleClass().add("home-sort-combo");
+
+        this.homeControlsBar.getChildren().addAll(
+            this.viewToggleButton,
+            this.sortComboBox
+        );
     }
 
     /**
      * Sets up the "Load Songs" button on the home page.
-     * 
+     *
      * @param multipleFileSelectionCallback Callback to open file selection dialog
      */
-    public void setupHomePageLoadButton(Runnable multipleFileSelectionCallback) {
+    public void setupHomePageLoadButton(
+        Runnable multipleFileSelectionCallback
+    ) {
         Button loadSongsButton = new Button("Load Songs");
         loadSongsButton.getStyleClass().add("home-page-load-songs-button");
         loadSongsButton.setOnMouseClicked(event -> {
@@ -556,6 +643,236 @@ public class CenterContainer {
         });
 
         this.mainPage.getChildren().add(loadSongsButton);
+    }
+
+    private void renderHomePageItems(
+        List<HomeSongItem> sourceItems,
+        Consumer<String> setTitleCallback,
+        Runnable updateUiCallback
+    ) {
+        if (sourceItems == null) return;
+
+        this.mainPage.getChildren().clear();
+        applyCurrentViewMode();
+
+        List<HomeSongItem> items = new ArrayList<>(sourceItems);
+        items.sort(getCurrentComparator());
+
+        for (HomeSongItem item : items) {
+            final int index = findPlaylistIndex(item.file);
+            if (index < 0) continue;
+
+            javafx.scene.Node rowOrCard = this.isGridView
+                ? createGridCard(
+                      item,
+                      index,
+                      setTitleCallback,
+                      updateUiCallback
+                  )
+                : createListRow(
+                      item,
+                      index,
+                      setTitleCallback,
+                      updateUiCallback
+                  );
+
+            this.mainPage.getChildren().add(rowOrCard);
+        }
+
+        this.viewToggleButton.setOnAction(e -> {
+            this.isGridView = !this.isGridView;
+            this.viewToggleButton.setText(
+                this.isGridView ? "List View" : "Grid View"
+            );
+            renderHomePageItems(
+                sourceItems,
+                setTitleCallback,
+                updateUiCallback
+            );
+        });
+
+        this.sortComboBox.setOnAction(e ->
+            renderHomePageItems(sourceItems, setTitleCallback, updateUiCallback)
+        );
+    }
+
+    private Comparator<HomeSongItem> getCurrentComparator() {
+        String selected =
+            this.sortComboBox != null
+                ? this.sortComboBox.getValue()
+                : SORT_TITLE;
+
+        if (SORT_ARTIST.equals(selected)) {
+            return Comparator.comparing((HomeSongItem i) ->
+                normalize(i.artist)
+            ).thenComparing(i -> normalize(i.title));
+        }
+        if (SORT_ALBUM.equals(selected)) {
+            return Comparator.comparing((HomeSongItem i) ->
+                normalize(i.album)
+            ).thenComparing(i -> normalize(i.title));
+        }
+
+        return Comparator.comparing((HomeSongItem i) ->
+            normalize(i.title)
+        ).thenComparing(i -> normalize(i.artist));
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT);
+    }
+
+    private int findPlaylistIndex(File file) {
+        List<File> playlist = this.musicPlayer.getPlaylist();
+        if (playlist == null) return -1;
+
+        for (int i = 0; i < playlist.size(); i++) {
+            if (playlist.get(i).equals(file)) return i;
+        }
+        return -1;
+    }
+
+    private javafx.scene.Node createGridCard(
+        HomeSongItem item,
+        int playlistIndex,
+        Consumer<String> setTitleCallback,
+        Runnable updateUiCallback
+    ) {
+        VBox vbox = new VBox();
+        vbox.setAlignment(Pos.CENTER);
+        vbox.setPadding(new Insets(8));
+        vbox.setSpacing(6);
+        vbox.getStyleClass().add("home-grid-card");
+
+        ImageView imageView = new ImageView(item.image);
+        imageView.setFitWidth(100);
+        imageView.setFitHeight(100);
+        imageView.setPreserveRatio(true);
+
+        Label title = new Label(item.title);
+        Label artist = new Label(item.artist);
+
+        vbox.getChildren().addAll(imageView, title, artist);
+        attachSongClickHandler(
+            vbox,
+            playlistIndex,
+            setTitleCallback,
+            updateUiCallback
+        );
+        return vbox;
+    }
+
+    private javafx.scene.Node createListRow(
+        HomeSongItem item,
+        int playlistIndex,
+        Consumer<String> setTitleCallback,
+        Runnable updateUiCallback
+    ) {
+        HBox row = new HBox();
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setSpacing(12);
+        row.setPadding(new Insets(8, 10, 8, 10));
+        row.getStyleClass().add("home-list-row");
+
+        ImageView imageView = new ImageView(item.image);
+        imageView.setFitWidth(40);
+        imageView.setFitHeight(40);
+        imageView.setPreserveRatio(true);
+
+        VBox textBox = new VBox();
+        textBox.setAlignment(Pos.CENTER_LEFT);
+        textBox.setSpacing(2);
+
+        Label title = new Label(item.title);
+        Label subtitle = new Label(item.artist + " • " + item.album);
+
+        textBox.getChildren().addAll(title, subtitle);
+        row.getChildren().addAll(imageView, textBox);
+
+        attachSongClickHandler(
+            row,
+            playlistIndex,
+            setTitleCallback,
+            updateUiCallback
+        );
+        return row;
+    }
+
+    private void attachSongClickHandler(
+        javafx.scene.Node node,
+        int playlistIndex,
+        Consumer<String> setTitleCallback,
+        Runnable updateUiCallback
+    ) {
+        node.setOnMouseClicked(event -> {
+            List<File> playlist = musicPlayer.getPlaylist();
+            if (
+                playlist == null ||
+                playlistIndex < 0 ||
+                playlistIndex >= playlist.size()
+            ) return;
+
+            if (musicPlayer.isRunning()) {
+                musicPlayer.stop();
+            }
+
+            musicPlayer.setPlaylistPosition(playlistIndex);
+            musicPlayer.changeSong(playlist.get(playlistIndex));
+
+            setTitleCallback.accept(
+                playlist.get(playlistIndex).getName() + " ~ Another MP3 Player"
+            );
+            if (updateUiCallback != null) {
+                updateUiCallback.run();
+            }
+
+            if (loadQueueViewCallback != null) {
+                loadQueueViewCallback.run();
+            }
+
+            updateQueueSelection();
+            musicPlayer.start();
+        });
+    }
+
+    private void applyCurrentViewMode() {
+        this.mainPage.setAlignment(Pos.TOP_LEFT);
+
+        if (this.isGridView) {
+            this.mainPage.setPrefColumns(4);
+            this.mainPage.setHgap(20);
+            this.mainPage.setVgap(20);
+        } else {
+            this.mainPage.setPrefColumns(1);
+            this.mainPage.setHgap(0);
+            this.mainPage.setVgap(6);
+        }
+    }
+
+    private static class HomeSongItem {
+
+        final File file;
+        final String title;
+        final String artist;
+        final String album;
+        final String duration;
+        final Image image;
+
+        HomeSongItem(
+            File file,
+            String title,
+            String artist,
+            String album,
+            String duration,
+            Image image
+        ) {
+            this.file = file;
+            this.title = title != null ? title : "";
+            this.artist = artist != null ? artist : "Unknown Artist";
+            this.album = album != null ? album : "Unknown Album";
+            this.duration = duration != null ? duration : "0:00";
+            this.image = image;
+        }
     }
 
     /**
@@ -573,9 +890,23 @@ public class CenterContainer {
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.getStyleClass().add("modern-scroll-pane");
 
-        // Bind home page height to scroll pane
-        this.mainPage.prefHeightProperty().bind(scrollPane.heightProperty().subtract(2));
+        VBox homeContainer = new VBox(this.homeControlsBar, scrollPane);
+        homeContainer.setAlignment(Pos.TOP_LEFT);
+        homeContainer.setPadding(new Insets(10, 14, 10, 14));
+        homeContainer.setFillWidth(true);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        this.homeNowPlayingContainer.getChildren().add(scrollPane);
+        // Make the scroll pane and tile pane use available width to avoid right-side whitespace
+        scrollPane.prefWidthProperty().bind(homeContainer.widthProperty());
+        this.mainPage.prefWidthProperty().bind(
+            scrollPane.widthProperty().subtract(18)
+        );
+
+        // Bind home page height to scroll pane
+        this.mainPage.prefHeightProperty().bind(
+            scrollPane.heightProperty().subtract(2)
+        );
+
+        this.homeNowPlayingContainer.getChildren().add(homeContainer);
     }
 }

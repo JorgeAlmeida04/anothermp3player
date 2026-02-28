@@ -1,8 +1,8 @@
 package music_player;
 
-import queue.QueueSongData;
-
 import java.io.File;
+import java.util.List;
+import queue.QueueSongData;
 
 public interface MusicPlayerAccess {
     boolean hasClip();
@@ -25,5 +25,6 @@ public interface MusicPlayerAccess {
     void changeSong(File file);
     void setPlaylistPosition(int position);
     int getPlaylistPosition();
+    List<File> getPlaylist();
     QueueSongData getQueueData(File file);
 }
