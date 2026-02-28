@@ -24,6 +24,7 @@ public interface MusicPlayerAccess {
     File loadPreviousSong();
     File initPlaylist();
     void changeSong(File file);
+    void setPlaylist(List<File> playlist);
     void setPlaylistPosition(int position);
     int getPlaylistPosition();
     List<File> getPlaylist();

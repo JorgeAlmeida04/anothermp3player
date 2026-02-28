@@ -126,7 +126,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         );
 
         // Create and configure scene
-        scene = new Scene(this.layout, 1260, 720);
+        scene = new Scene(this.layout, 1150, 797);
         scene.getStylesheets().add("Default_Theme.css");
 
         // Display window
@@ -345,9 +345,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
      * Loads the queue view with current playlist and sets up selection handler.
      */
     private void loadQueueView() {
-        centerContainer.loadQueueView(playlist);
+        this.playlist = this.musicPlayer.getPlaylist();
+        centerContainer.loadQueueView(this.playlist);
         centerContainer.setupQueueSelectionHandler(
-            playlist,
+            this.playlist,
             this::setWindowTitle,
             bottomContainer.getPlayPauseButton()
         );

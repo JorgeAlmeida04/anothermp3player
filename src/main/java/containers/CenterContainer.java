@@ -119,6 +119,7 @@ public class CenterContainer {
     private HBox homeControlsBar;
     private javafx.scene.control.ComboBox<String> sortComboBox;
     private Button viewToggleButton;
+    private Label sortBehaviorHintLabel;
     private boolean isGridView = true;
     private static final String SORT_TITLE = "Title (A-Z)";
     private static final String SORT_ARTIST = "Artist (A-Z)";
@@ -299,6 +300,7 @@ public class CenterContainer {
                     return;
                 }
                 this.queue.getItems().setAll(built);
+                updateQueueSelection();
             });
         });
     }
@@ -679,9 +681,15 @@ public class CenterContainer {
         this.sortComboBox.setValue(SORT_TITLE);
         this.sortComboBox.getStyleClass().add("home-sort-combo");
 
+        this.sortBehaviorHintLabel = new Label(
+            "Sort also controls playback and queue order"
+        );
+        this.sortBehaviorHintLabel.getStyleClass().add("home-sort-hint");
+
         this.homeControlsBar.getChildren().addAll(
             this.viewToggleButton,
-            this.sortComboBox
+            this.sortComboBox,
+            this.sortBehaviorHintLabel
         );
     }
 
@@ -717,23 +725,14 @@ public class CenterContainer {
         List<HomeSongItem> items = new ArrayList<>(sourceItems);
         items.sort(getCurrentComparator());
 
-        for (HomeSongItem item : items) {
-            final int index = findPlaylistIndex(item.file);
-            if (index < 0) continue;
+        applySortedOrderToPlaybackPlaylist(items);
+
+        for (int i = 0; i < items.size(); i++) {
+            HomeSongItem item = items.get(i);
 
             Node rowOrCard = this.isGridView
-                ? createGridCard(
-                      item,
-                      index,
-                      setTitleCallback,
-                      updateUiCallback
-                  )
-                : createListRow(
-                      item,
-                      index,
-                      setTitleCallback,
-                      updateUiCallback
-                  );
+                ? createGridCard(item, i, setTitleCallback, updateUiCallback)
+                : createListRow(item, i, setTitleCallback, updateUiCallback);
 
             this.mainPage.getChildren().add(rowOrCard);
         }
@@ -781,14 +780,38 @@ public class CenterContainer {
         return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
 
-    private int findPlaylistIndex(File file) {
-        List<File> playlist = this.musicPlayer.getPlaylist();
-        if (playlist == null) return -1;
+    private void applySortedOrderToPlaybackPlaylist(
+        List<HomeSongItem> sortedItems
+    ) {
+        List<File> currentPlaylist = this.musicPlayer.getPlaylist();
+        if (currentPlaylist == null || currentPlaylist.isEmpty()) return;
+        if (sortedItems == null || sortedItems.isEmpty()) return;
 
-        for (int i = 0; i < playlist.size(); i++) {
-            if (playlist.get(i).equals(file)) return i;
+        int currentPos = this.musicPlayer.getPlaylistPosition();
+        File currentSong = (currentPos >= 0 &&
+            currentPos < currentPlaylist.size())
+            ? currentPlaylist.get(currentPos)
+            : null;
+
+        List<File> reordered = new ArrayList<>(sortedItems.size());
+        for (HomeSongItem item : sortedItems) {
+            if (item != null && item.file != null) {
+                reordered.add(item.file);
+            }
         }
-        return -1;
+
+        if (reordered.isEmpty()) return;
+
+        this.musicPlayer.setPlaylist(reordered);
+
+        if (currentSong != null) {
+            for (int i = 0; i < reordered.size(); i++) {
+                if (reordered.get(i).equals(currentSong)) {
+                    this.musicPlayer.setPlaylistPosition(i);
+                    break;
+                }
+            }
+        }
     }
 
     private Node createGridCard(
