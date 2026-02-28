@@ -34,6 +34,7 @@ import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.Node;
 import music_player.MusicPlayerAccess;
 import queue.QueueCell;
 import queue.QueueItem;
@@ -662,7 +663,7 @@ public class CenterContainer {
             final int index = findPlaylistIndex(item.file);
             if (index < 0) continue;
 
-            javafx.scene.Node rowOrCard = this.isGridView
+           Node rowOrCard = this.isGridView
                 ? createGridCard(
                       item,
                       index,
@@ -732,7 +733,7 @@ public class CenterContainer {
         return -1;
     }
 
-    private javafx.scene.Node createGridCard(
+    private Node createGridCard(
         HomeSongItem item,
         int playlistIndex,
         Consumer<String> setTitleCallback,
@@ -762,7 +763,7 @@ public class CenterContainer {
         return vbox;
     }
 
-    private javafx.scene.Node createListRow(
+    private Node createListRow(
         HomeSongItem item,
         int playlistIndex,
         Consumer<String> setTitleCallback,
@@ -799,7 +800,7 @@ public class CenterContainer {
     }
 
     private void attachSongClickHandler(
-        javafx.scene.Node node,
+        Node node,
         int playlistIndex,
         Consumer<String> setTitleCallback,
         Runnable updateUiCallback
