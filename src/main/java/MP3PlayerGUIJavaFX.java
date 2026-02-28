@@ -1,6 +1,11 @@
 import containers.*;
-import music_player.MusicPlayerAccess;
-import music_player.MusicPlayerModel;
+import db.DataBaseManager;
+import java.io.File;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
@@ -13,24 +18,22 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import music_player.MusicPlayerAccess;
+import music_player.MusicPlayerModel;
 import net.yetihafen.javafx.customcaption.CustomCaption;
+import services.SongService;
 import util.ImageCache;
-
-import java.io.File;
-import java.util.List;
-import java.util.Observable;
-import java.util.Observer;
 
 /**
  * Main application class for the MP3 Player.
  * This class serves as the entry point and orchestrates the UI containers.
- * 
+ *
  * Architecture:
  * - Uses a BorderPane layout with three main containers:
  *   - TopContainer: Menu bar for file operations
  *   - CenterContainer: Home page and now playing views
  *   - BottomContainer: Playback controls and song info
- * 
+ *
  * The class implements Observer to receive updates from the music player model
  * and update the UI accordingly.
  */
@@ -43,17 +46,19 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     private MusicPlayerModel musicPlayer;
 
     // UI Containers
-    private BottomContainer bottomContainer;   // Playback controls
-    private CenterContainer centerContainer;   // Main content area
-    private TopContainer topContainer;         // Menu bar
+    private BottomContainer bottomContainer; // Playback controls
+    private CenterContainer centerContainer; // Main content area
+    private TopContainer topContainer; // Menu bar
 
     // State
-    private List<File> playlist;   // Current playlist
+    private List<File> playlist; // Current playlist
 
     // JavaFX components
-    private Stage window;          // Main application window
-    private Scene scene;           // Main scene
-    private BorderPane layout;     // Root layout container
+    private Stage window; // Main application window
+    private Scene scene; // Main scene
+    private BorderPane layout; // Root layout container
+
+    private SongService songService;
 
     // Animation state for now playing view
     private boolean isOpen = false;
@@ -65,15 +70,19 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
      * This is called before start() by the JavaFX framework.
      */
     @Override
-    public void init() {
+    public void init() throws Exception {
         this.musicPlayer = new MusicPlayerModel();
         this.musicPlayer.addObserver(this);
+
+        DataBaseManager.getInstance().initialize();
+        this.songService = new SongService();
+        this.songService.deletedFiles();
     }
 
     /**
      * Creates and displays the main application window.
      * Sets up all UI containers and starts the update timer.
-     * 
+     *
      * @param stage The primary stage provided by JavaFX
      * @throws Exception If initialization fails
      */
@@ -94,17 +103,24 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         // Initialize all UI containers
         initContainers();
 
+        loadPersistedLibraryOnStartup();
+
         // Start periodic GUI updates for song progress
-        KeyFrame updater = new KeyFrame(Duration.seconds(DEFAULT_UPDATE_DURATION), e -> notifyGUI());
+        KeyFrame updater = new KeyFrame(
+            Duration.seconds(DEFAULT_UPDATE_DURATION),
+            e -> notifyGUI()
+        );
         Timeline t = new Timeline(updater);
         t.setCycleCount(Timeline.INDEFINITE);
         t.play();
 
         // Assemble the layout
         this.layout.setBottom(this.bottomContainer.getBottomLayout());
-        this.bottomContainer.getBottomLayout().setVisible(false);  // Hidden until song loaded
+        this.bottomContainer.getBottomLayout().setVisible(false); // Hidden until song loaded
         this.layout.setTop(this.topContainer.getMenuBar());
-        this.layout.setCenter(this.centerContainer.getHomeNowPlayingContainer());
+        this.layout.setCenter(
+            this.centerContainer.getHomeNowPlayingContainer()
+        );
 
         // Create and configure scene
         scene = new Scene(this.layout, 1260, 720);
@@ -125,28 +141,30 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         });
     }
 
+    private void shutdown() {}
+
     // ==================== Container Initialization ====================
 
     /**
      * Creates and configures all UI containers.
      * Order matters due to dependencies between containers.
-     * 
+     *
      * @throws Exception If container initialization fails
      */
     private void initContainers() throws Exception {
         // Initialize center container first (needed by bottom container for toggle callback)
         centerContainer = new CenterContainer(
-                (MusicPlayerAccess) musicPlayer,
+            (MusicPlayerAccess) musicPlayer,
             this::onPlaylistLoaded,
             this::onSongSelectedFromQueue,
             this::onPlayPauseToggle,
-                this::loadQueueView
+            this::loadQueueView
         );
         centerContainer.initialize(layout);
-        
+
         // Initialize top container (menu bar)
         topContainer = new TopContainer(
-                (MusicPlayerAccess) musicPlayer,
+            (MusicPlayerAccess) musicPlayer,
             window,
             this::onSongLoaded,
             this::onPlaylistLoaded,
@@ -154,24 +172,26 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             this::loadQueueView
         );
         topContainer.initialize();
-        
+
         // Initialize bottom container (playback controls)
         bottomContainer = new BottomContainer(
-                (MusicPlayerAccess) musicPlayer,
+            (MusicPlayerAccess) musicPlayer,
             this::toggleView,
             this::loadPlaylistSong,
             this::updateSongLabels,
             this::onPrevSong
         );
         bottomContainer.initialize(centerContainer.getNowPlayingWrapper());
-        
+
         // Set up callbacks for center container UI updates
         centerContainer.setUpdateCallbacks(
             this::updateVolumeSlider,
             this::updateSongSlider,
             this::updateSongLabels
         );
-        centerContainer.setupHomePageLoadButton(this::multipleFileSelectionAndFill);
+        centerContainer.setupHomePageLoadButton(
+            this::multipleFileSelectionAndFill
+        );
     }
 
     // ==================== Event Handlers ====================
@@ -179,7 +199,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     /**
      * Handles loading a single song file.
      * Updates the window title and all UI elements.
-     * 
+     *
      * @param songFile The song file to load
      */
     private void onSongLoaded(File songFile) {
@@ -200,26 +220,36 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     /**
      * Handles playlist loading.
      * Stores the playlist and sets it on the music player.
-     * 
+     *
      * @param playlist The list of songs to load
      */
     private void onPlaylistLoaded(List<File> playlist) {
-        this.playlist = playlist;
+        try {
+            this.playlist = this.songService.mergeAndStore(playlist);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            this.playlist = playlist;
+        }
+
         this.musicPlayer.setPlaylist(this.playlist);
         this.centerContainer.fillTheHomePage(
-                this.playlist,
-                this::setWindowTitle,
-                () -> {
-                    updateAllUI();
-                    ImageCache.setButtonImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
-                }
+            this.playlist,
+            this::setWindowTitle,
+            () -> {
+                updateAllUI();
+                ImageCache.setButtonImage(
+                    bottomContainer.getPlayPauseButton(),
+                    "new-pause.png"
+                );
+            }
         );
+        loadQueueView();
     }
 
     /**
      * Handles song selection from the queue view.
      * Updates window title and all UI elements.
-     * 
+     *
      * @param song The selected song file
      */
     private void onSongSelectedFromQueue(File song) {
@@ -230,7 +260,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     /**
      * Handles loading the previous song.
      * Updates window title and all UI elements.
-     * 
+     *
      * @param song The previous song file
      */
     private void onPrevSong(File song) {
@@ -269,7 +299,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             updateAllUI();
             centerContainer.updateQueueSelection();
             this.musicPlayer.start();
-            ImageCache.setButtonImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
+            ImageCache.setButtonImage(
+                bottomContainer.getPlayPauseButton(),
+                "new-pause.png"
+            );
         }
     }
 
@@ -280,7 +313,11 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
      */
     private void loadQueueView() {
         centerContainer.loadQueueView(playlist);
-        centerContainer.setupQueueSelectionHandler(playlist, this::setWindowTitle, bottomContainer.getPlayPauseButton());
+        centerContainer.setupQueueSelectionHandler(
+            playlist,
+            this::setWindowTitle,
+            bottomContainer.getPlayPauseButton()
+        );
     }
 
     /**
@@ -288,19 +325,31 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
      */
     private void multipleFileSelectionAndFill() {
         List<File> selectedFiles = topContainer.multipleFileSelection();
-        if (selectedFiles != null && !selectedFiles.isEmpty()) {
-            this.playlist = selectedFiles;
-            this.musicPlayer.setPlaylist(selectedFiles);
-            centerContainer.getMainPage().getChildren().clear();
-            centerContainer.fillTheHomePage(
-                playlist,
-                this::setWindowTitle,
-                () -> {
-                    updateAllUI();
-                    ImageCache.setButtonImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
-                }
-            );
+        if (selectedFiles == null || selectedFiles.isEmpty()) {
+            return;
         }
+
+        try {
+            this.playlist = this.songService.mergeAndStore(selectedFiles);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            this.playlist = new ArrayList<>(selectedFiles);
+        }
+
+        this.musicPlayer.setPlaylist(this.playlist);
+        centerContainer.getMainPage().getChildren().clear();
+        centerContainer.fillTheHomePage(
+            this.playlist,
+            this::setWindowTitle,
+            () -> {
+                updateAllUI();
+                ImageCache.setButtonImage(
+                    bottomContainer.getPlayPauseButton(),
+                    "new-pause.png"
+                );
+            }
+        );
+        loadQueueView();
     }
 
     // ==================== UI Update Methods ====================
@@ -347,7 +396,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
 
     /**
      * Sets the window title.
-     * 
+     *
      * @param title The new window title
      */
     private void setWindowTitle(String title) {
@@ -366,7 +415,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     /**
      * Toggles the visibility of a view with slide animation.
      * Used to show/hide the now playing view.
-     * 
+     *
      * @param viewToAnimate The region to animate
      */
     private void toggleView(Region viewToAnimate) {
@@ -390,9 +439,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         Timeline timeline = new Timeline();
 
         KeyValue kv = new KeyValue(
-                viewToAnimate.translateYProperty(),
-                endValue,
-                Interpolator.EASE_BOTH
+            viewToAnimate.translateYProperty(),
+            endValue,
+            Interpolator.EASE_BOTH
         );
 
         KeyFrame kf = new KeyFrame(Duration.millis(150), kv);
@@ -404,7 +453,10 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                 viewToAnimate.setVisible(false);
                 viewToAnimate.setMouseTransparent(true);
                 viewToAnimate.setManaged(false);
-                centerContainer.getHomeNowPlayingContainer().getChildren().remove(viewToAnimate);
+                centerContainer
+                    .getHomeNowPlayingContainer()
+                    .getChildren()
+                    .remove(viewToAnimate);
             }
         });
 
@@ -417,23 +469,55 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     /**
      * Called when the music player model changes.
      * Updates play/pause button, visibility, and song progress.
-     * 
+     *
      * @param o   The observable object
      * @param arg Optional argument (not used)
      */
+    /**
+     * Loads persisted songs from the database on startup and displays them on the home page.
+     * If no songs exist, the home page remains empty until user loads files.
+     */
+    private void loadPersistedLibraryOnStartup() {
+        try {
+            List<File> persistedFiles =
+                this.songService.getExistingSongFilesFromDb();
+            if (persistedFiles == null || persistedFiles.isEmpty()) {
+                return;
+            }
+
+            this.playlist = persistedFiles;
+            this.musicPlayer.setPlaylist(this.playlist);
+
+            centerContainer.fillTheHomePage(
+                this.playlist,
+                this::setWindowTitle,
+                this::updateAllUI
+            );
+            loadQueueView();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public void update(Observable o, Object arg) {
         // Update play/pause button icon
         if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
-            ImageCache.setButtonImage(bottomContainer.getPlayPauseButton(), "new-pause.png");
+            ImageCache.setButtonImage(
+                bottomContainer.getPlayPauseButton(),
+                "new-pause.png"
+            );
         } else {
-            ImageCache.setButtonImage(bottomContainer.getPlayPauseButton(), "new-play.png");
+            ImageCache.setButtonImage(
+                bottomContainer.getPlayPauseButton(),
+                "new-play.png"
+            );
         }
-        
+
         // Handle song loaded state
         if (this.musicPlayer.hasClip()) {
             this.bottomContainer.getBottomLayout().setVisible(true);
-            
+
             // Auto-advance to next song if current song ended
             if (this.musicPlayer.atEnd()) {
                 if (this.musicPlayer.hasPlaylist()) {
@@ -442,10 +526,12 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                     this.bottomContainer.getBottomLayout().setVisible(false);
                 }
             }
-            
+
             // Update song progress if not being dragged
             if (!bottomContainer.isDragging()) {
-                bottomContainer.getSongSlider().setValue(this.musicPlayer.getClipCurrentValue());
+                bottomContainer
+                    .getSongSlider()
+                    .setValue(this.musicPlayer.getClipCurrentValue());
             }
         }
     }
