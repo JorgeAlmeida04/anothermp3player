@@ -1,19 +1,18 @@
 package util;
 
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 
-import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Centralized image loading and caching utility.
- * 
+ *
  * Eliminates the duplicated setImage() method that existed in
  * MP3PlayerGUIJavaFX, CenterContainer, and BottomContainer.
- * 
+ *
  * Caches loaded images to avoid repeatedly reading the same
  * resource from disk (e.g., play/pause icons toggled every update cycle).
  */
@@ -35,9 +34,13 @@ public final class ImageCache {
     public static Image getImage(String fileName) {
         return cache.computeIfAbsent(fileName, key -> {
             String resourcePath = "/assets/" + key;
-            InputStream inputStream = ImageCache.class.getResourceAsStream(resourcePath);
+            InputStream inputStream = ImageCache.class.getResourceAsStream(
+                resourcePath
+            );
             if (inputStream == null) {
-                throw new RuntimeException("Resource not found: " + resourcePath);
+                throw new RuntimeException(
+                    "Resource not found: " + resourcePath
+                );
             }
             return new Image(inputStream);
         });
@@ -53,6 +56,20 @@ public final class ImageCache {
      */
     public static void setButtonImage(ButtonBase button, String fileName) {
         Image image = getImage(fileName);
-        button.setGraphic(new ImageView(image));
+
+        Object currentKey = button.getProperties().get("imageCache.iconKey");
+        if (
+            fileName.equals(currentKey) &&
+            button.getGraphic() instanceof ImageView
+        ) {
+            ImageView currentView = (ImageView) button.getGraphic();
+            if (currentView.getImage() == image) {
+                return;
+            }
+        }
+
+        ImageView imageView = new ImageView(image);
+        button.setGraphic(imageView);
+        button.getProperties().put("imageCache.iconKey", fileName);
     }
 }

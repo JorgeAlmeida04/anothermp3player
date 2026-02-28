@@ -161,16 +161,24 @@ public class SongService {
     public List<File> mergeAndStore(List<File> selectedFiles)
         throws SQLException {
         List<File> merged = new ArrayList<>();
+        java.util.Set<String> seenPaths = new java.util.HashSet<>();
 
         List<File> existing = getExistingSongFilesFromDb();
         if (existing != null && !existing.isEmpty()) {
-            merged.addAll(existing);
+            for (File file : existing) {
+                if (file == null || !file.exists() || !file.isFile()) continue;
+                String path = file.getPath();
+                if (seenPaths.add(path)) {
+                    merged.add(file);
+                }
+            }
         }
 
         if (selectedFiles != null && !selectedFiles.isEmpty()) {
             for (File file : selectedFiles) {
                 if (file == null || !file.exists() || !file.isFile()) continue;
-                if (!containsPath(merged, file.getPath())) {
+                String path = file.getPath();
+                if (seenPaths.add(path)) {
                     merged.add(file);
                 }
             }
@@ -178,14 +186,5 @@ public class SongService {
         }
 
         return merged;
-    }
-
-    private boolean containsPath(List<File> files, String path) {
-        for (File file : files) {
-            if (file != null && file.getPath().equals(path)) {
-                return true;
-            }
-        }
-        return false;
     }
 }

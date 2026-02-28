@@ -6,10 +6,12 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
-import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -106,10 +108,12 @@ public class CenterContainer {
     private static final String LYRICS_ACTIVE_TEXT_COLOR = "white";
     private static final String LYRICS_NEAR_CONTEXT_TEXT_COLOR = "#a8a8a8";
     private static final String LYRICS_FAR_TEXT_COLOR = "#8a8a8a";
-    private static final double LYRICS_ACTIVE_SCALE = 1.06;
-    private static final double LYRICS_NEAR_CONTEXT_SCALE = 1.01;
-    private static final double LYRICS_NORMAL_SCALE = 1.0;
-    private static final double LYRICS_SCALE_ANIMATION_MS = 140;
+    private static final Insets LYRICS_LINE_VERTICAL_PADDING = new Insets(
+        4,
+        0,
+        4,
+        0
+    );
 
     // Home page controls/state
     private HBox homeControlsBar;
@@ -131,6 +135,18 @@ public class CenterContainer {
     private Runnable updateVolumeSliderCallback;
     private Runnable updateSongSliderCallback;
     private Runnable updateSongLabelsCallback;
+
+    // Background loading state (single worker + cancellable tasks)
+    private final ExecutorService metadataExecutor =
+        Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "center-metadata-loader");
+            t.setDaemon(true);
+            return t;
+        });
+    private Future<?> queueMetadataFuture;
+    private Future<?> homeMetadataFuture;
+    private long queueLoadGeneration = 0L;
+    private long homeLoadGeneration = 0L;
 
     /**
      * Constructs a new CenterContainer with the required dependencies and callbacks.
@@ -229,65 +245,62 @@ public class CenterContainer {
      * @param playlist The list of songs to display in the queue
      */
     public void loadQueueView(List<File> playlist) {
-        if (playlist == null || playlist.isEmpty()) return;
-
-        // Clear existing items
-        this.queue.getItems().clear();
-
-        // Initial fill with file names (fast)
-        for (File file : playlist) {
-            this.queue.getItems().add(
-                new QueueItem(file, file.getName(), "", "", null)
-            );
+        if (playlist == null || playlist.isEmpty()) {
+            this.queue.getItems().clear();
+            return;
         }
 
-        // Background task to load metadata for each song
-        Task<Void> metadataTask = new Task<>() {
-            @Override
-            protected Void call() throws Exception {
-                for (int i = 0; i < playlist.size(); i++) {
-                    File file = playlist.get(i);
-                    QueueSongData data = musicPlayer.getQueueData(file);
+        // Cancel previous queue metadata task and issue a new generation token
+        if (this.queueMetadataFuture != null) {
+            this.queueMetadataFuture.cancel(true);
+        }
+        final long generation = ++this.queueLoadGeneration;
 
-                    // Create thumbnail for queue item
-                    Image img = null;
-                    if (data.imageData != null) {
-                        img = new Image(
-                            new ByteArrayInputStream(data.imageData),
-                            40,
-                            40,
-                            true,
-                            true
-                        );
-                    }
+        // Fast initial fill with placeholders in one UI commit
+        List<QueueItem> placeholders = new ArrayList<>(playlist.size());
+        for (File file : playlist) {
+            placeholders.add(new QueueItem(file, file.getName(), "", "", null));
+        }
+        this.queue.getItems().setAll(placeholders);
 
-                    QueueItem item = new QueueItem(
+        // Build full metadata list in background, then commit once
+        this.queueMetadataFuture = this.metadataExecutor.submit(() -> {
+            List<QueueItem> built = new ArrayList<>(playlist.size());
+            for (File file : playlist) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
+
+                QueueSongData data = musicPlayer.getQueueData(file);
+                Image img = null;
+                if (data.imageData != null) {
+                    img = new Image(
+                        new ByteArrayInputStream(data.imageData),
+                        40,
+                        40,
+                        true,
+                        true
+                    );
+                }
+
+                built.add(
+                    new QueueItem(
                         file,
                         data.title,
                         data.artist,
                         data.duration,
                         img
-                    );
-
-                    // Update UI on JavaFX thread
-                    final int index = i;
-                    Platform.runLater(() -> {
-                        if (queue.getItems().size() > index) {
-                            queue.getItems().set(index, item);
-                        }
-                    });
-
-                    // Small delay to prevent UI freezing
-                    Thread.sleep(10);
-                }
-                return null;
+                    )
+                );
             }
-        };
 
-        // Run as daemon thread so it doesn't prevent app shutdown
-        Thread thread = new Thread(metadataTask);
-        thread.setDaemon(true);
-        thread.start();
+            Platform.runLater(() -> {
+                if (generation != this.queueLoadGeneration) {
+                    return;
+                }
+                this.queue.getItems().setAll(built);
+            });
+        });
     }
 
     // ==================== Home Page Management ====================
@@ -308,59 +321,59 @@ public class CenterContainer {
     ) {
         if (playlist == null) return;
 
+        // Cancel previous home metadata task and issue a new generation token
+        if (this.homeMetadataFuture != null) {
+            this.homeMetadataFuture.cancel(true);
+        }
+        final long generation = ++this.homeLoadGeneration;
+
         // Clear existing content
         this.mainPage.getChildren().clear();
         this.mainPage.setPadding(new Insets(20));
 
-        // Background task to load metadata first, then render sorted/view-mode UI
-        Task<List<HomeSongItem>> metadataTask = new Task<>() {
-            @Override
-            protected List<HomeSongItem> call() throws Exception {
-                List<HomeSongItem> items = new ArrayList<>();
+        // Build full metadata list in background, then render once on UI thread
+        this.homeMetadataFuture = this.metadataExecutor.submit(() -> {
+            List<HomeSongItem> items = new ArrayList<>(playlist.size());
 
-                for (int i = 0; i < playlist.size(); i++) {
-                    File file = playlist.get(i);
-                    QueueSongData data = musicPlayer.getQueueData(file);
-
-                    Image img;
-                    if (data.imageData != null) {
-                        img = new Image(
-                            new ByteArrayInputStream(data.imageData),
-                            100,
-                            100,
-                            true,
-                            true
-                        );
-                    } else {
-                        img = DEFAULT_ALBUM_COVER;
-                    }
-
-                    items.add(
-                        new HomeSongItem(
-                            file,
-                            data.title,
-                            data.artist,
-                            data.album,
-                            data.duration,
-                            img
-                        )
-                    );
-
-                    Thread.sleep(10);
+            for (File file : playlist) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
                 }
 
-                return items;
+                QueueSongData data = musicPlayer.getQueueData(file);
+
+                Image img;
+                if (data.imageData != null) {
+                    img = new Image(
+                        new ByteArrayInputStream(data.imageData),
+                        100,
+                        100,
+                        true,
+                        true
+                    );
+                } else {
+                    img = DEFAULT_ALBUM_COVER;
+                }
+
+                items.add(
+                    new HomeSongItem(
+                        file,
+                        data.title,
+                        data.artist,
+                        data.album,
+                        data.duration,
+                        img
+                    )
+                );
             }
-        };
 
-        metadataTask.setOnSucceeded(event -> {
-            List<HomeSongItem> items = metadataTask.getValue();
-            renderHomePageItems(items, setTitleCallback, updateUiCallback);
+            Platform.runLater(() -> {
+                if (generation != this.homeLoadGeneration) {
+                    return;
+                }
+                renderHomePageItems(items, setTitleCallback, updateUiCallback);
+            });
         });
-
-        Thread thread = new Thread(metadataTask);
-        thread.setDaemon(true);
-        thread.start();
     }
 
     /**
@@ -368,6 +381,27 @@ public class CenterContainer {
      * Also updates the blurred background for the now playing view.
      * Falls back to default cover if no album image is available.
      */
+    public void shutdown() {
+        try {
+            if (this.queueMetadataFuture != null) {
+                this.queueMetadataFuture.cancel(true);
+                this.queueMetadataFuture = null;
+            }
+            if (this.homeMetadataFuture != null) {
+                this.homeMetadataFuture.cancel(true);
+                this.homeMetadataFuture = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            this.metadataExecutor.shutdownNow();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void updateSongCover() {
         byte[] albumImage = musicPlayer.getSongAlbumImage();
         Image coverImage;
@@ -1125,9 +1159,8 @@ public class CenterContainer {
             );
             l.setWrapText(true);
             l.setMaxWidth(Double.MAX_VALUE);
+            l.setPadding(LYRICS_LINE_VERTICAL_PADDING);
             l.setStyle(buildSyncedLyricsStyleForDistance(Integer.MAX_VALUE));
-            l.setScaleX(LYRICS_NORMAL_SCALE);
-            l.setScaleY(LYRICS_NORMAL_SCALE);
             this.syncedLyricsLineLabels.add(l);
             this.lyricsContent.getChildren().add(l);
         }
@@ -1248,9 +1281,6 @@ public class CenterContainer {
                 : Integer.MAX_VALUE;
 
             lineLabel.setStyle(buildSyncedLyricsStyleForDistance(distance));
-
-            double targetScale = computeSyncedLyricsScaleForDistance(distance);
-            animateSyncedLyricsLineScale(lineLabel, targetScale);
         }
     }
 
@@ -1277,53 +1307,5 @@ public class CenterContainer {
             LYRICS_BASE_FONT_SIZE_PX +
             "px; -fx-font-weight: normal;"
         );
-    }
-
-    private double computeSyncedLyricsScaleForDistance(int distance) {
-        if (distance == 0) {
-            return LYRICS_ACTIVE_SCALE;
-        }
-        if (distance <= LYRICS_CONTEXT_WINDOW) {
-            return LYRICS_NEAR_CONTEXT_SCALE;
-        }
-        return LYRICS_NORMAL_SCALE;
-    }
-
-    private void animateSyncedLyricsLineScale(
-        Label lineLabel,
-        double targetScale
-    ) {
-        double currentScaleX = lineLabel.getScaleX();
-        double currentScaleY = lineLabel.getScaleY();
-
-        if (
-            Math.abs(currentScaleX - targetScale) < 0.0001 &&
-            Math.abs(currentScaleY - targetScale) < 0.0001
-        ) {
-            return;
-        }
-
-        Object existing = lineLabel
-            .getProperties()
-            .get("lyricsScaleTransition");
-        if (existing instanceof ScaleTransition) {
-            ((ScaleTransition) existing).stop();
-        }
-
-        ScaleTransition transition = new ScaleTransition(
-            Duration.millis(LYRICS_SCALE_ANIMATION_MS),
-            lineLabel
-        );
-        transition.setFromX(currentScaleX);
-        transition.setFromY(currentScaleY);
-        transition.setToX(targetScale);
-        transition.setToY(targetScale);
-        transition.setInterpolator(javafx.animation.Interpolator.EASE_BOTH);
-        transition.setOnFinished(e ->
-            lineLabel.getProperties().remove("lyricsScaleTransition")
-        );
-
-        lineLabel.getProperties().put("lyricsScaleTransition", transition);
-        transition.play();
     }
 }

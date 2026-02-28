@@ -319,11 +319,11 @@ public class BottomContainer {
 
         // Song title with bold font
         songTitle = new Label("Song Title");
-        songTitle.setFont(Font.font("Comic Sans MS", FontWeight.BOLD, FontPosture.REGULAR, 25));
+        songTitle.setFont(Font.font(" \"Inter\", \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", \"Arial\", sans-serif", FontWeight.BOLD, FontPosture.REGULAR, 25));
 
         // Song artist with semi-bold font
         songArtist = new Label("Song Artist");
-        songArtist.setFont(Font.font("Comic Sans MS", FontWeight.SEMI_BOLD, FontPosture.REGULAR, 16));
+        songArtist.setFont(Font.font(" \"Inter\", \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", \"Arial\", sans-serif", FontWeight.SEMI_BOLD, FontPosture.REGULAR, 16));
 
         labelVBox.getChildren().addAll(songTitle, songArtist);
     }

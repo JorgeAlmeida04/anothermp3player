@@ -63,6 +63,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     // Animation state for now playing view
     private boolean isOpen = false;
 
+    // Lifecycle-managed UI update timer
+    private Timeline uiUpdateTimeline;
+
     // ==================== Application Lifecycle ====================
 
     /**
@@ -96,7 +99,7 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         window.setTitle("No Song Selected ~ Another MP3 Player");
         window.getIcons().add(ImageCache.getImage("amp3p.png"));
         window.setOnCloseRequest(e -> {
-            System.out.println("Closing");
+            shutdown();
             window.close();
         });
 
@@ -110,9 +113,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
             Duration.seconds(DEFAULT_UPDATE_DURATION),
             e -> notifyGUI()
         );
-        Timeline t = new Timeline(updater);
-        t.setCycleCount(Timeline.INDEFINITE);
-        t.play();
+        this.uiUpdateTimeline = new Timeline(updater);
+        this.uiUpdateTimeline.setCycleCount(Timeline.INDEFINITE);
+        this.uiUpdateTimeline.play();
 
         // Assemble the layout
         this.layout.setBottom(this.bottomContainer.getBottomLayout());
@@ -141,7 +144,37 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
         });
     }
 
-    private void shutdown() {}
+    private void shutdown() {
+        try {
+            if (this.uiUpdateTimeline != null) {
+                this.uiUpdateTimeline.stop();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            if (this.centerContainer != null) {
+                this.centerContainer.shutdown();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            if (this.musicPlayer != null && this.musicPlayer.hasClip()) {
+                this.musicPlayer.stop();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            DataBaseManager.getInstance().shutdown();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     // ==================== Container Initialization ====================
 
@@ -500,6 +533,11 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
     }
 
     @Override
+    public void stop() throws Exception {
+        shutdown();
+        super.stop();
+    }
+
     public void update(Observable o, Object arg) {
         // Update play/pause button icon
         if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {

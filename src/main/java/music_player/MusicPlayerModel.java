@@ -8,7 +8,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Observable;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.sound.sampled.*;
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Decoder;
@@ -25,6 +27,8 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     private String currentArtist;
     private byte[] currentAlbumImage;
     private double currentVolume = 10.0;
+    private final Map<String, QueueSongData> queueDataCache =
+        new ConcurrentHashMap<>();
 
     public MusicPlayerModel() {
         this.clip = null;
@@ -331,6 +335,19 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
     public void setPlaylist(List<File> playlist) {
         this.playlist = playlist;
         this.playlistPosition = 0;
+        if (playlist != null && !playlist.isEmpty()) {
+            queueDataCache
+                .keySet()
+                .retainAll(
+                    playlist
+                        .stream()
+                        .filter(f -> f != null)
+                        .map(File::getAbsolutePath)
+                        .toList()
+                );
+        } else {
+            queueDataCache.clear();
+        }
     }
 
     //Changes the playlist song (triggered by the user)
@@ -398,6 +415,22 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
      * Consolidates the previously duplicated getSongMetadata() and getQueueData() methods.
      */
     public QueueSongData getQueueData(File file) {
+        if (file == null) {
+            return new QueueSongData(
+                "Unknown",
+                "Unknown Artist",
+                "Unknown Album",
+                "0:00",
+                null
+            );
+        }
+
+        String cacheKey = file.getAbsolutePath();
+        QueueSongData cached = queueDataCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
         String title = file.getName();
         String artist = "Unknown Artist";
         String album = "Unknown Album";
@@ -426,6 +459,15 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return new QueueSongData(title, artist, album, duration, imageData);
+
+        QueueSongData parsed = new QueueSongData(
+            title,
+            artist,
+            album,
+            duration,
+            imageData
+        );
+        queueDataCache.put(cacheKey, parsed);
+        return parsed;
     }
 }
