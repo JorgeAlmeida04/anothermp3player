@@ -358,6 +358,12 @@ public class MusicPlayerModel extends Observable implements MusicPlayerAccess {
         return this.clip.getFramePosition();
     }
 
+    // Gets precise playback position in milliseconds for sync features (e.g., lyrics)
+    public long getPlaybackPositionMs() {
+        if (!hasClip()) return 0L;
+        return this.clip.getMicrosecondPosition() / 1000L;
+    }
+
     //Checks if the song is at the end
     public boolean atEnd() {
         return this.clip.getFramePosition() >= this.clip.getFrameLength() - 100;

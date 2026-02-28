@@ -423,6 +423,7 @@
 .queue .scroll-bar:vertical {
     -fx-background-color: transparent;
     -fx-pref-width: 8px;
+    -fx-opacity: 1;
 }
 
 .queue .scroll-bar:horizontal {
@@ -472,6 +473,7 @@
 .modern-scroll-pane .scroll-bar:vertical {
     -fx-background-color: transparent;
     -fx-pref-width: 8px;
+    -fx-opacity: 1;
 }
 
 .modern-scroll-pane .scroll-bar:horizontal {
@@ -487,6 +489,7 @@
 .modern-scroll-pane .scroll-bar .thumb {
     -fx-background-color: rgba(255, 255, 255, 0.2);
     -fx-background-radius: 4px;
+    -fx-background-insets: 0;
 }
 
 .modern-scroll-pane .scroll-bar .thumb:hover {

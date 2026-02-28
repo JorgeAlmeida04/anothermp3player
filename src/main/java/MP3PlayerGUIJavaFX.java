@@ -533,6 +533,9 @@ public class MP3PlayerGUIJavaFX extends Application implements Observer {
                     .getSongSlider()
                     .setValue(this.musicPlayer.getClipCurrentValue());
             }
+
+            // Keep synced lyrics highlight in lockstep with playback progress
+            centerContainer.updateLyricsHighlight();
         }
     }
 }

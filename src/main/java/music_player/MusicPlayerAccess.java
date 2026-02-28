@@ -16,6 +16,7 @@ public interface MusicPlayerAccess {
     void setSongPosition(int position);
     int getClipLength();
     int getClipCurrentValue();
+    long getPlaybackPositionMs();
     String getSongTitle();
     String getSongArtist();
     byte[] getSongAlbumImage();

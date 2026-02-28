@@ -5,16 +5,18 @@ import eu.iamgio.animated.binding.presets.AnimatedScale;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.function.Consumer;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.ScaleTransition;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.control.Label;
@@ -34,7 +36,8 @@ import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
-import javafx.scene.Node;
+import javafx.util.Duration;
+import model.LyricsTrack;
 import music_player.MusicPlayerAccess;
 import queue.QueueCell;
 import queue.QueueItem;
@@ -78,6 +81,36 @@ public class CenterContainer {
     private TilePane mainPage; // Home page with song grid/list
     private StackPane homeNowPlayingContainer; // Root container stacking both views
 
+    // Now playing right panel tabs (Queue / Lyrics)
+    private VBox rightPanelContent;
+    private Label queueTabLabel;
+    private Label lyricsTabLabel;
+    private VBox queueContainerNode;
+    private ScrollPane lyricsScrollPane;
+    private VBox lyricsContent;
+    private Label lyricsEmptyLabel;
+    private Label lyricsUnsyncedLabel;
+    private boolean showingLyricsTab = false;
+
+    // Lyrics state
+    private services.LyricsService lyricsService;
+    private model.LyricsTrack currentLyricsTrack;
+    private final List<Label> syncedLyricsLineLabels = new ArrayList<>();
+    private int currentHighlightedLyricsIndex = -1;
+    private Timeline lyricsScrollAnimation;
+    private static final double LYRICS_TARGET_VIEWPORT_RATIO = 0.5;
+    private static final double LYRICS_SCROLL_ANIMATION_MS = 260;
+    private static final double LYRICS_BASE_FONT_SIZE_PX = 14;
+    private static final double LYRICS_ACTIVE_FONT_SIZE_PX = 16;
+    private static final int LYRICS_CONTEXT_WINDOW = 2;
+    private static final String LYRICS_ACTIVE_TEXT_COLOR = "white";
+    private static final String LYRICS_NEAR_CONTEXT_TEXT_COLOR = "#a8a8a8";
+    private static final String LYRICS_FAR_TEXT_COLOR = "#8a8a8a";
+    private static final double LYRICS_ACTIVE_SCALE = 1.06;
+    private static final double LYRICS_NEAR_CONTEXT_SCALE = 1.01;
+    private static final double LYRICS_NORMAL_SCALE = 1.0;
+    private static final double LYRICS_SCALE_ANIMATION_MS = 140;
+
     // Home page controls/state
     private HBox homeControlsBar;
     private javafx.scene.control.ComboBox<String> sortComboBox;
@@ -120,6 +153,7 @@ public class CenterContainer {
         this.onSongSelectedFromQueue = onSongSelectedFromQueue;
         this.onPlayPauseToggle = onPlayPauseToggle;
         this.loadQueueViewCallback = loadQueueView;
+        this.lyricsService = new services.LyricsService();
     }
 
     /**
@@ -464,27 +498,12 @@ public class CenterContainer {
         // Initialize queue list
         initQueueView();
 
-        // Create queue header with "UP NEXT" label
-        Label upNextLabel = new Label("UP NEXT");
-        upNextLabel.getStyleClass().add("queue-header-selected");
+        // Create right panel with tabs + content
+        createNowPlayingRightPanel();
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        HBox queueHeader = new HBox(upNextLabel, spacer);
-        queueHeader.setSpacing(20);
-        queueHeader.setPadding(new Insets(10));
-        queueHeader.setAlignment(Pos.CENTER_LEFT);
-        queueHeader.getStyleClass().add("queue-header-container");
-
-        // Combine header and queue list
-        VBox queueContainer = new VBox(queueHeader, this.queue);
-        VBox.setVgrow(this.queue, Priority.ALWAYS);
-        queueContainer.setPadding(new Insets(0, 25, 0, 0));
-
-        // Add cover and queue to grid
+        // Add cover and right panel to grid
         this.coverQueueContainer.add(animatedCover, 0, 0);
-        this.coverQueueContainer.add(queueContainer, 1, 0);
+        this.coverQueueContainer.add(this.rightPanelContent, 1, 0);
     }
 
     /**
@@ -542,6 +561,9 @@ public class CenterContainer {
                     updateSongLabelsCallback != null
                 ) updateSongLabelsCallback.run();
 
+                // Lyrics refresh for selected song
+                loadLyricsForCurrentSong();
+
                 // Start playback
                 this.musicPlayer.start();
                 ImageCache.setButtonImage(playPauseButton, "new-pause.png");
@@ -559,6 +581,8 @@ public class CenterContainer {
             this.queue.getSelectionModel().select(position);
             this.queue.scrollTo(position);
         }
+        loadLyricsForCurrentSong();
+        updateLyricsHighlight();
     }
 
     /**
@@ -663,7 +687,7 @@ public class CenterContainer {
             final int index = findPlaylistIndex(item.file);
             if (index < 0) continue;
 
-           Node rowOrCard = this.isGridView
+            Node rowOrCard = this.isGridView
                 ? createGridCard(
                       item,
                       index,
@@ -832,6 +856,7 @@ public class CenterContainer {
             }
 
             updateQueueSelection();
+            loadLyricsForCurrentSong();
             musicPlayer.start();
         });
     }
@@ -909,5 +934,396 @@ public class CenterContainer {
         );
 
         this.homeNowPlayingContainer.getChildren().add(homeContainer);
+    }
+
+    private void createNowPlayingRightPanel() {
+        this.queueTabLabel = new Label("UP NEXT");
+        this.queueTabLabel.getStyleClass().add("queue-header-selected");
+
+        this.lyricsTabLabel = new Label("LYRICS");
+        this.lyricsTabLabel.getStyleClass().add("queue-header-unselected");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox header = new HBox(this.queueTabLabel, this.lyricsTabLabel, spacer);
+        header.setSpacing(20);
+        header.setPadding(new Insets(10));
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("queue-header-container");
+
+        this.queueContainerNode = new VBox(this.queue);
+        VBox.setVgrow(this.queue, Priority.ALWAYS);
+        this.queueContainerNode.setPadding(new Insets(0, 0, 0, 0));
+
+        this.lyricsContent = new VBox();
+        this.lyricsContent.setSpacing(8);
+        this.lyricsContent.setPadding(new Insets(8, 8, 8, 8));
+
+        this.lyricsEmptyLabel = new Label(
+            "No local lyrics found.\nAdd a .lrc or .txt file with the same song name."
+        );
+        this.lyricsUnsyncedLabel = new Label("Unsynced lyrics (text only)");
+
+        this.lyricsScrollPane = new ScrollPane(this.lyricsContent);
+        this.lyricsScrollPane.setFitToWidth(true);
+        this.lyricsScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        this.lyricsScrollPane.setVbarPolicy(
+            ScrollPane.ScrollBarPolicy.AS_NEEDED
+        );
+        this.lyricsScrollPane.getStyleClass().add("modern-scroll-pane");
+
+        // Constrain right-panel body height to follow album cover height
+        this.queueContainerNode.prefHeightProperty().bind(
+            this.songCover.fitHeightProperty()
+        );
+        this.queueContainerNode.maxHeightProperty().bind(
+            this.songCover.fitHeightProperty()
+        );
+        this.lyricsScrollPane.prefHeightProperty().bind(
+            this.songCover.fitHeightProperty()
+        );
+        this.lyricsScrollPane.maxHeightProperty().bind(
+            this.songCover.fitHeightProperty()
+        );
+
+        StackPane body = new StackPane(
+            this.queueContainerNode,
+            this.lyricsScrollPane
+        );
+        body.setAlignment(Pos.TOP_LEFT);
+        body.setMinHeight(0);
+        body.prefHeightProperty().bind(this.songCover.fitHeightProperty());
+        body.maxHeightProperty().bind(this.songCover.fitHeightProperty());
+        VBox.setVgrow(body, Priority.NEVER);
+
+        this.queueContainerNode.setMaxWidth(Double.MAX_VALUE);
+        this.queueContainerNode.setAlignment(Pos.TOP_LEFT);
+        this.lyricsScrollPane.setMaxWidth(Double.MAX_VALUE);
+        this.lyricsScrollPane.setMinHeight(0);
+
+        this.rightPanelContent = new VBox(header, body);
+        this.rightPanelContent.setPadding(new Insets(0, 25, 0, 0));
+        this.rightPanelContent.setAlignment(Pos.TOP_LEFT);
+        this.rightPanelContent.setFillWidth(true);
+        this.rightPanelContent.setMinHeight(0);
+        this.rightPanelContent.maxHeightProperty().bind(
+            this.songCover.fitHeightProperty().add(header.heightProperty())
+        );
+        VBox.setVgrow(body, Priority.NEVER);
+
+        this.queueTabLabel.setOnMouseClicked(e -> switchToQueueTab());
+        this.lyricsTabLabel.setOnMouseClicked(e -> switchToLyricsTab());
+
+        switchToQueueTab();
+    }
+
+    private void switchToQueueTab() {
+        this.showingLyricsTab = false;
+        this.queueContainerNode.setVisible(true);
+        this.queueContainerNode.setManaged(true);
+        this.lyricsScrollPane.setVisible(false);
+        this.lyricsScrollPane.setManaged(false);
+
+        this.queueContainerNode.toFront();
+
+        this.queueTabLabel.getStyleClass().remove("queue-header-unselected");
+        if (
+            !this.queueTabLabel.getStyleClass().contains(
+                "queue-header-selected"
+            )
+        ) {
+            this.queueTabLabel.getStyleClass().add("queue-header-selected");
+        }
+
+        this.lyricsTabLabel.getStyleClass().remove("queue-header-selected");
+        if (
+            !this.lyricsTabLabel.getStyleClass().contains(
+                "queue-header-unselected"
+            )
+        ) {
+            this.lyricsTabLabel.getStyleClass().add("queue-header-unselected");
+        }
+    }
+
+    private void switchToLyricsTab() {
+        this.showingLyricsTab = true;
+        this.queueContainerNode.setVisible(false);
+        this.queueContainerNode.setManaged(false);
+        this.lyricsScrollPane.setVisible(true);
+        this.lyricsScrollPane.setManaged(true);
+
+        this.lyricsScrollPane.toFront();
+
+        this.lyricsTabLabel.getStyleClass().remove("queue-header-unselected");
+        if (
+            !this.lyricsTabLabel.getStyleClass().contains(
+                "queue-header-selected"
+            )
+        ) {
+            this.lyricsTabLabel.getStyleClass().add("queue-header-selected");
+        }
+
+        this.queueTabLabel.getStyleClass().remove("queue-header-selected");
+        if (
+            !this.queueTabLabel.getStyleClass().contains(
+                "queue-header-unselected"
+            )
+        ) {
+            this.queueTabLabel.getStyleClass().add("queue-header-unselected");
+        }
+
+        loadLyricsForCurrentSong();
+    }
+
+    public void loadLyricsForCurrentSong() {
+        this.currentLyricsTrack = null;
+        this.currentHighlightedLyricsIndex = -1;
+        this.syncedLyricsLineLabels.clear();
+        this.lyricsContent.getChildren().clear();
+
+        if (!this.musicPlayer.hasPlaylist() || !this.musicPlayer.hasClip()) {
+            this.lyricsContent.getChildren().add(this.lyricsEmptyLabel);
+            return;
+        }
+
+        List<File> playlist = this.musicPlayer.getPlaylist();
+        int pos = this.musicPlayer.getPlaylistPosition();
+        if (playlist == null || pos < 0 || pos >= playlist.size()) {
+            this.lyricsContent.getChildren().add(this.lyricsEmptyLabel);
+            return;
+        }
+
+        File currentSong = playlist.get(pos);
+        Optional<LyricsTrack> maybe = this.lyricsService.resolveLyrics(
+            currentSong
+        );
+        if (maybe.isEmpty()) {
+            this.lyricsContent.getChildren().add(this.lyricsEmptyLabel);
+            return;
+        }
+
+        this.currentLyricsTrack = maybe.get();
+
+        if (!this.currentLyricsTrack.isSynced()) {
+            this.lyricsUnsyncedLabel.setStyle(
+                "-fx-text-fill: #aaaaaa; -fx-font-size: 12px;"
+            );
+            Label text = new Label(this.currentLyricsTrack.getRawText());
+            text.setWrapText(true);
+            text.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+            this.lyricsContent.getChildren().addAll(
+                this.lyricsUnsyncedLabel,
+                text
+            );
+            return;
+        }
+
+        for (model.LyricsLine line : this.currentLyricsTrack.getLines()) {
+            Label l = new Label(
+                line.getText().isBlank() ? " " : line.getText()
+            );
+            l.setWrapText(true);
+            l.setMaxWidth(Double.MAX_VALUE);
+            l.setStyle(buildSyncedLyricsStyleForDistance(Integer.MAX_VALUE));
+            l.setScaleX(LYRICS_NORMAL_SCALE);
+            l.setScaleY(LYRICS_NORMAL_SCALE);
+            this.syncedLyricsLineLabels.add(l);
+            this.lyricsContent.getChildren().add(l);
+        }
+
+        updateLyricsHighlight();
+    }
+
+    public void updateLyricsHighlight() {
+        if (
+            this.currentLyricsTrack == null ||
+            !this.currentLyricsTrack.isSynced() ||
+            this.currentLyricsTrack.getLines().isEmpty() ||
+            !this.musicPlayer.hasClip()
+        ) {
+            return;
+        }
+
+        long playbackMs = this.musicPlayer.getPlaybackPositionMs();
+        int activeIndex = findActiveLyricsIndexByTime(playbackMs);
+        if (activeIndex == this.currentHighlightedLyricsIndex) return;
+
+        applySyncedLyricsVisualState(activeIndex);
+
+        if (
+            activeIndex >= 0 && activeIndex < this.syncedLyricsLineLabels.size()
+        ) {
+            this.currentHighlightedLyricsIndex = activeIndex;
+
+            if (this.showingLyricsTab) {
+                Platform.runLater(() -> scrollToActiveLyricsLine(activeIndex));
+            }
+        }
+    }
+
+    private int findActiveLyricsIndexByTime(long currentMs) {
+        List<model.LyricsLine> lines = this.currentLyricsTrack.getLines();
+        int lo = 0,
+            hi = lines.size() - 1,
+            ans = 0;
+
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            if (lines.get(mid).getTimeMs() <= currentMs) {
+                ans = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return ans;
+    }
+
+    private void scrollToActiveLyricsLine(int activeIndex) {
+        if (this.syncedLyricsLineLabels.isEmpty()) return;
+        if (
+            activeIndex < 0 || activeIndex >= this.syncedLyricsLineLabels.size()
+        ) return;
+
+        Label activeLabel = this.syncedLyricsLineLabels.get(activeIndex);
+
+        double contentHeight =
+            this.lyricsContent.getBoundsInLocal().getHeight();
+        double viewportHeight =
+            this.lyricsScrollPane.getViewportBounds().getHeight();
+
+        if (
+            contentHeight <= 0 ||
+            viewportHeight <= 0 ||
+            contentHeight <= viewportHeight
+        ) {
+            this.lyricsScrollPane.setVvalue(0);
+            return;
+        }
+
+        // Compute active line center in content coordinates
+        double lineTop = activeLabel.getBoundsInParent().getMinY();
+        double lineHeight = activeLabel.getBoundsInParent().getHeight();
+        double lineCenter = lineTop + (lineHeight / 2.0);
+
+        // Keep active line near configured viewport ratio (Apple/Spotify-like feel)
+        double targetPixel =
+            lineCenter - (viewportHeight * LYRICS_TARGET_VIEWPORT_RATIO);
+        double maxPixel = contentHeight - viewportHeight;
+        double clampedPixel = Math.max(0, Math.min(maxPixel, targetPixel));
+        double targetV = clampedPixel / maxPixel;
+
+        double currentV = this.lyricsScrollPane.getVvalue();
+        if (Math.abs(currentV - targetV) < 0.0015) {
+            this.lyricsScrollPane.setVvalue(targetV);
+            return;
+        }
+
+        // Persistent easing timeline: stop and retarget instead of spawning a new one every tick
+        if (this.lyricsScrollAnimation != null) {
+            this.lyricsScrollAnimation.stop();
+        }
+
+        this.lyricsScrollAnimation = new Timeline(
+            new KeyFrame(
+                Duration.millis(LYRICS_SCROLL_ANIMATION_MS),
+                new KeyValue(
+                    this.lyricsScrollPane.vvalueProperty(),
+                    targetV,
+                    javafx.animation.Interpolator.EASE_BOTH
+                )
+            )
+        );
+        this.lyricsScrollAnimation.play();
+    }
+
+    private void applySyncedLyricsVisualState(int activeIndex) {
+        if (this.syncedLyricsLineLabels.isEmpty()) return;
+
+        for (int i = 0; i < this.syncedLyricsLineLabels.size(); i++) {
+            Label lineLabel = this.syncedLyricsLineLabels.get(i);
+            int distance = (activeIndex >= 0)
+                ? Math.abs(i - activeIndex)
+                : Integer.MAX_VALUE;
+
+            lineLabel.setStyle(buildSyncedLyricsStyleForDistance(distance));
+
+            double targetScale = computeSyncedLyricsScaleForDistance(distance);
+            animateSyncedLyricsLineScale(lineLabel, targetScale);
+        }
+    }
+
+    private String buildSyncedLyricsStyleForDistance(int distance) {
+        if (distance == 0) {
+            return (
+                "-fx-text-fill: " +
+                LYRICS_ACTIVE_TEXT_COLOR +
+                "; -fx-font-size: " +
+                LYRICS_ACTIVE_FONT_SIZE_PX +
+                "px; -fx-font-weight: bold;"
+            );
+        }
+
+        String color =
+            distance <= LYRICS_CONTEXT_WINDOW
+                ? LYRICS_NEAR_CONTEXT_TEXT_COLOR
+                : LYRICS_FAR_TEXT_COLOR;
+
+        return (
+            "-fx-text-fill: " +
+            color +
+            "; -fx-font-size: " +
+            LYRICS_BASE_FONT_SIZE_PX +
+            "px; -fx-font-weight: normal;"
+        );
+    }
+
+    private double computeSyncedLyricsScaleForDistance(int distance) {
+        if (distance == 0) {
+            return LYRICS_ACTIVE_SCALE;
+        }
+        if (distance <= LYRICS_CONTEXT_WINDOW) {
+            return LYRICS_NEAR_CONTEXT_SCALE;
+        }
+        return LYRICS_NORMAL_SCALE;
+    }
+
+    private void animateSyncedLyricsLineScale(
+        Label lineLabel,
+        double targetScale
+    ) {
+        double currentScaleX = lineLabel.getScaleX();
+        double currentScaleY = lineLabel.getScaleY();
+
+        if (
+            Math.abs(currentScaleX - targetScale) < 0.0001 &&
+            Math.abs(currentScaleY - targetScale) < 0.0001
+        ) {
+            return;
+        }
+
+        Object existing = lineLabel
+            .getProperties()
+            .get("lyricsScaleTransition");
+        if (existing instanceof ScaleTransition) {
+            ((ScaleTransition) existing).stop();
+        }
+
+        ScaleTransition transition = new ScaleTransition(
+            Duration.millis(LYRICS_SCALE_ANIMATION_MS),
+            lineLabel
+        );
+        transition.setFromX(currentScaleX);
+        transition.setFromY(currentScaleY);
+        transition.setToX(targetScale);
+        transition.setToY(targetScale);
+        transition.setInterpolator(javafx.animation.Interpolator.EASE_BOTH);
+        transition.setOnFinished(e ->
+            lineLabel.getProperties().remove("lyricsScaleTransition")
+        );
+
+        lineLabel.getProperties().put("lyricsScaleTransition", transition);
+        transition.play();
     }
 }
