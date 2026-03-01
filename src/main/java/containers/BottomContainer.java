@@ -1,5 +1,8 @@
 package containers;
 
+import java.io.File;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -21,10 +24,6 @@ import javafx.stage.Popup;
 import music_player.MusicPlayerAccess;
 import util.ImageCache;
 
-import java.io.File;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 /**
  * BottomContainer manages the bottom section of the MP3 player UI.
  * This includes:
@@ -32,7 +31,7 @@ import java.util.function.Function;
  * - Song progress slider
  * - Volume slider
  * - Song title and artist display
- * 
+ *
  * The container uses a GridPane layout with two rows:
  * - Row 0: Song slider/progress bar
  * - Row 1: Playback controls, song info, and volume slider
@@ -40,62 +39,58 @@ import java.util.function.Function;
 public class BottomContainer {
 
     // Main layout containers
-    private GridPane bottomLayout;      // Root container for the bottom section
-    private GridPane playbackBox;       // Container for playback controls and song info
+    private GridPane bottomLayout; // Root container for the bottom section
+    private GridPane playbackBox; // Container for playback controls and song info
 
     // Playback control buttons
-    private Button playPauseButton;     // Toggles between play and pause states
-    private Button nextButton;          // Skips to next song in playlist
-    private Button prevButton;          // Returns to previous song in playlist
+    private Button playPauseButton; // Toggles between play and pause states
+    private Button nextButton; // Skips to next song in playlist
+    private Button prevButton; // Returns to previous song in playlist
+    private Button shuffleButton; // Toggles shuffle mode
+    private Button repeatButton; // Toggles repeat mode
 
     // Volume control components
-    private Slider volumeSlider;        // Draggable volume control (0-100)
-    private ProgressBar volumeBar;      // Visual progress indicator for volume
-    private StackPane volumeSliderBar;  // Container stacking progress bar and slider
+    private Slider volumeSlider; // Draggable volume control (0-100)
+    private ProgressBar volumeBar; // Visual progress indicator for volume
+    private StackPane volumeSliderBar; // Container stacking progress bar and slider
 
     // Song progress components
-    private Slider songSlider;          // Draggable song position control
-    private ProgressBar songBar;        // Visual progress indicator for song position
-    private StackPane songSliderBar;    // Container stacking progress bar and slider
+    private Slider songSlider; // Draggable song position control
+    private ProgressBar songBar; // Visual progress indicator for song position
+    private StackPane songSliderBar; // Container stacking progress bar and slider
     private boolean isDragging = false; // Flag to track if user is dragging the song slider
 
     // Song information display
-    private Label songTitle;            // Displays current song title
-    private Label songArtist;           // Displays current song artist
-    private VBox labelVBox;             // Container for title and artist labels
+    private Label songTitle; // Displays current song title
+    private Label songArtist; // Displays current song artist
+    private VBox labelVBox; // Container for title and artist labels
 
     // Dependencies and callbacks
-    private final MusicPlayerAccess musicPlayer;           // Interface to music player model
-    private final Consumer<Region> toggleViewCallback;     // Callback to toggle now playing view
-    private final Runnable loadPlaylistSongCallback;       // Callback to load next playlist song
-    private final Runnable updateSongLabelsCallback;       // Callback to update song labels
-    private final Consumer<File> onPrevSongCallback;       // Callback when previous song is loaded
+    private final MusicPlayerAccess musicPlayer; // Interface to music player model
+    private final Consumer<Region> toggleViewCallback; // Callback to toggle now playing view
+    private final Runnable loadPlaylistSongCallback; // Callback to load next playlist song
 
     /**
      * Constructs a new BottomContainer with the required dependencies and callbacks.
-     * 
+     *
      * @param musicPlayer              Interface to the music player model
      * @param toggleViewCallback       Callback to toggle the now playing view visibility
      * @param loadPlaylistSongCallback Callback to load the next song in playlist
-     * @param updateSongLabelsCallback Callback to update song information labels
-     * @param onPrevSongCallback       Callback when a previous song is loaded
      */
-    public BottomContainer(MusicPlayerAccess musicPlayer,
-                           Consumer<Region> toggleViewCallback,
-                           Runnable loadPlaylistSongCallback,
-                           Runnable updateSongLabelsCallback,
-                           Consumer<File> onPrevSongCallback) {
+    public BottomContainer(
+        MusicPlayerAccess musicPlayer,
+        Consumer<Region> toggleViewCallback,
+        Runnable loadPlaylistSongCallback
+    ) {
         this.musicPlayer = musicPlayer;
         this.toggleViewCallback = toggleViewCallback;
         this.loadPlaylistSongCallback = loadPlaylistSongCallback;
-        this.updateSongLabelsCallback = updateSongLabelsCallback;
-        this.onPrevSongCallback = onPrevSongCallback;
     }
 
     /**
      * Initializes the bottom container layout.
      * Must be called after construction before using the container.
-     * 
+     *
      * @param coverQueueContainer The region to toggle visibility for when clicking bottom layout
      */
     public void initialize(Region coverQueueContainer) {
@@ -193,7 +188,7 @@ public class BottomContainer {
     /**
      * Initializes the main bottom layout container.
      * Creates a two-row grid with song slider on top and controls below.
-     * 
+     *
      * @param coverQueueContainer The region to show/hide when clicking this layout
      */
     private void initBottomLayout(Region coverQueueContainer) {
@@ -219,13 +214,15 @@ public class BottomContainer {
         this.playbackBox.setPadding(new Insets(5));
 
         // Configure three columns: left (buttons), center (song info), right (volume)
-        ColumnConstraints col1 = new ColumnConstraints(), col2 = new ColumnConstraints(), col3 = new ColumnConstraints();
+        ColumnConstraints col1 = new ColumnConstraints(),
+            col2 = new ColumnConstraints(),
+            col3 = new ColumnConstraints();
         col1.setPercentWidth(25);
-        col1.setHalignment(HPos.LEFT);      // Buttons aligned left
+        col1.setHalignment(HPos.LEFT); // Buttons aligned left
         col2.setPercentWidth(50);
-        col2.setHalignment(HPos.CENTER);    // Song info centered
+        col2.setHalignment(HPos.CENTER); // Song info centered
         col3.setPercentWidth(25);
-        col3.setHalignment(HPos.RIGHT);     // Volume aligned right
+        col3.setHalignment(HPos.RIGHT); // Volume aligned right
         playbackBox.getColumnConstraints().addAll(col1, col2, col3);
 
         // Initialize all sub-components
@@ -262,10 +259,8 @@ public class BottomContainer {
             if (this.musicPlayer.hasClip()) {
                 if (this.musicPlayer.isRunning() && !this.musicPlayer.atEnd()) {
                     this.musicPlayer.stop();
-                    ImageCache.setButtonImage(playPauseButton, "new-play.png");
                 } else {
                     this.musicPlayer.start();
-                    ImageCache.setButtonImage(playPauseButton, "new-pause.png");
                 }
             }
         });
@@ -274,7 +269,10 @@ public class BottomContainer {
         nextButton = new Button();
         ImageCache.setButtonImage(nextButton, "next.png");
         nextButton.setOnAction(e -> {
-            if (this.musicPlayer.hasPlaylist() && loadPlaylistSongCallback != null) {
+            if (
+                this.musicPlayer.hasPlaylist() &&
+                loadPlaylistSongCallback != null
+            ) {
                 loadPlaylistSongCallback.run();
             }
         });
@@ -287,24 +285,80 @@ public class BottomContainer {
                 boolean wasRunning = this.musicPlayer.isRunning();
                 this.musicPlayer.stop();
                 File song = this.musicPlayer.loadPreviousSong();
-                if (song != null && onPrevSongCallback != null) {
-                    onPrevSongCallback.accept(song);
+                if (song != null) {
                     if (wasRunning) {
                         this.musicPlayer.start();
-                        ImageCache.setButtonImage(this.playPauseButton, "new-pause.png");
                     }
                 }
             }
         });
 
+        // Shuffle button - toggles shuffle mode
+        shuffleButton = new Button();
+        ImageCache.setButtonImage(shuffleButton, "shuffle.png");
+        shuffleButton.getStyleClass().add("shuffle-button");
+        updateShuffleButtonStyle();
+        shuffleButton.setOnAction(e -> {
+            this.musicPlayer.setShuffle(!this.musicPlayer.isShuffle());
+            updateShuffleButtonStyle();
+        });
+
+        // Repeat button - toggles repeat mode
+        repeatButton = new Button();
+        ImageCache.setButtonImage(repeatButton, "repeat.png");
+        repeatButton.getStyleClass().add("repeat-button");
+        updateRepeatButtonStyle();
+        repeatButton.setOnAction(e -> {
+            this.musicPlayer.setRepeat(!this.musicPlayer.isRepeat());
+            updateRepeatButtonStyle();
+        });
+
         // Container for all playback buttons
         FlowPane playbackButtons = new FlowPane();
-        playbackButtons.setHgap(5);
+        playbackButtons.setHgap(12);
         playbackButtons.setAlignment(Pos.CENTER);
         playbackButtons.setPadding(new Insets(5));
-        playbackButtons.getChildren().addAll(prevButton, playPauseButton, nextButton);
+        playbackButtons
+            .getChildren()
+            .addAll(
+                shuffleButton,
+                prevButton,
+                playPauseButton,
+                nextButton,
+                repeatButton
+            );
 
         playbackBox.add(playbackButtons, 0, 0);
+    }
+
+    public void updateShuffleButtonStyle() {
+        if (this.musicPlayer.isShuffle()) {
+            this.shuffleButton.setStyle(
+                "-fx-background-color: rgba(29, 185, 84, 0.15); " +
+                "-fx-background-radius: 100px; " +
+                "-fx-opacity: 1.0;"
+            );
+        } else {
+            this.shuffleButton.setStyle(
+                "-fx-background-color: transparent; " +
+                "-fx-opacity: 0.6;"
+            );
+        }
+    }
+
+    public void updateRepeatButtonStyle() {
+        if (this.musicPlayer.isRepeat()) {
+            this.repeatButton.setStyle(
+                "-fx-background-color: rgba(29, 185, 84, 0.15); " +
+                "-fx-background-radius: 100px; " +
+                "-fx-opacity: 1.0;"
+            );
+        } else {
+            this.repeatButton.setStyle(
+                "-fx-background-color: transparent; " +
+                "-fx-opacity: 0.6;"
+            );
+        }
     }
 
     /**
@@ -319,11 +373,25 @@ public class BottomContainer {
 
         // Song title with bold font
         songTitle = new Label("Song Title");
-        songTitle.setFont(Font.font(" \"Inter\", \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", \"Arial\", sans-serif", FontWeight.BOLD, FontPosture.REGULAR, 25));
+        songTitle.setFont(
+            Font.font(
+                " \"Inter\", \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", \"Arial\", sans-serif",
+                FontWeight.BOLD,
+                FontPosture.REGULAR,
+                25
+            )
+        );
 
         // Song artist with semi-bold font
         songArtist = new Label("Song Artist");
-        songArtist.setFont(Font.font(" \"Inter\", \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", \"Arial\", sans-serif", FontWeight.SEMI_BOLD, FontPosture.REGULAR, 16));
+        songArtist.setFont(
+            Font.font(
+                " \"Inter\", \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", \"Arial\", sans-serif",
+                FontWeight.SEMI_BOLD,
+                FontPosture.REGULAR,
+                16
+            )
+        );
 
         labelVBox.getChildren().addAll(songTitle, songArtist);
     }
@@ -340,24 +408,35 @@ public class BottomContainer {
 
         // Slider allows user control
         this.volumeSlider = new Slider(0, 100, 10);
-        this.volumeSlider.setOrientation(javafx.geometry.Orientation.HORIZONTAL);
+        this.volumeSlider.setOrientation(
+            javafx.geometry.Orientation.HORIZONTAL
+        );
         this.volumeSlider.setMaxHeight(80);
-        this.volumeSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
-            this.musicPlayer.volumeChange(newValue.doubleValue());
-        });
+        this.volumeSlider.valueProperty().addListener(
+            (observable, oldValue, newValue) -> {
+                this.musicPlayer.volumeChange(newValue.doubleValue());
+            }
+        );
         this.volumeSlider.getStyleClass().add("volume-slider");
 
         // Show percentage popup on hover
-        setupSliderPopup(this.volumeSlider, value -> String.format("%.0f%%", value));
+        setupSliderPopup(this.volumeSlider, value ->
+            String.format("%.0f%%", value)
+        );
 
         // Bind progress bar to slider value
         this.volumeBar.progressProperty().bind(
-                this.volumeSlider.valueProperty().divide(this.volumeSlider.maxProperty())
+            this.volumeSlider.valueProperty().divide(
+                this.volumeSlider.maxProperty()
+            )
         );
 
         // Stack progress bar behind slider
         this.volumeSliderBar = new StackPane();
-        this.volumeSliderBar.getChildren().addAll(this.volumeBar, this.volumeSlider);
+        this.volumeSliderBar.getChildren().addAll(
+            this.volumeBar,
+            this.volumeSlider
+        );
         this.volumeSliderBar.setAlignment(Pos.CENTER);
     }
 
@@ -375,14 +454,14 @@ public class BottomContainer {
         this.songSlider = new Slider(0, 100, 0);
         this.songSlider.setShowTickMarks(false);
         this.songSlider.setShowTickLabels(false);
-        this.songSlider.setMajorTickUnit(60 * 44231.5636364);  // Tick unit for time display
+        this.songSlider.setMajorTickUnit(60 * 44231.5636364); // Tick unit for time display
         this.songSlider.setOrientation(javafx.geometry.Orientation.HORIZONTAL);
         this.songSlider.getStyleClass().add("song-slider");
 
         // Show time popup on hover (converts frames to minutes:seconds)
         setupSliderPopup(this.songSlider, hoverValue -> {
             if (this.songSlider.getMax() > 0) {
-                double timeUnit = 44231.5636364;  // Frames per second conversion factor
+                double timeUnit = 44231.5636364; // Frames per second conversion factor
                 int minutes = (int) (hoverValue / timeUnit) / 60;
                 int seconds = (int) (hoverValue / timeUnit) % 60;
                 return String.format("%d:%02d", minutes, seconds);
@@ -397,27 +476,37 @@ public class BottomContainer {
 
         // Seek to position when user releases slider
         this.songSlider.setOnMouseReleased(event -> {
-            this.musicPlayer.setSongPosition(((int) this.songSlider.getValue()));
+            this.musicPlayer.setSongPosition(
+                ((int) this.songSlider.getValue())
+            );
             this.isDragging = false;
         });
 
         // Update progress bar when slider value changes
-        this.songSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
-            if (this.songSlider.getMax() > 0) {
-                this.songBar.setProgress(newValue.doubleValue() / this.songSlider.getMax());
-            } else {
-                this.songBar.setProgress(0);
+        this.songSlider.valueProperty().addListener(
+            (observable, oldValue, newValue) -> {
+                if (this.songSlider.getMax() > 0) {
+                    this.songBar.setProgress(
+                        newValue.doubleValue() / this.songSlider.getMax()
+                    );
+                } else {
+                    this.songBar.setProgress(0);
+                }
             }
-        });
+        );
 
         // Update progress bar when song length changes
-        this.songSlider.maxProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue.doubleValue() > 0) {
-                this.songBar.setProgress(this.songSlider.getValue() / newValue.doubleValue());
-            } else {
-                this.songBar.setProgress(0);
+        this.songSlider.maxProperty().addListener(
+            (observable, oldValue, newValue) -> {
+                if (newValue.doubleValue() > 0) {
+                    this.songBar.setProgress(
+                        this.songSlider.getValue() / newValue.doubleValue()
+                    );
+                } else {
+                    this.songBar.setProgress(0);
+                }
             }
-        });
+        );
 
         // Stack progress bar behind slider
         this.songSliderBar = new StackPane();
@@ -425,17 +514,22 @@ public class BottomContainer {
         this.songSliderBar.setAlignment(Pos.CENTER);
 
         // Bind progress bar width to container
-        this.songBar.prefWidthProperty().bind(this.songSliderBar.widthProperty());
+        this.songBar.prefWidthProperty().bind(
+            this.songSliderBar.widthProperty()
+        );
     }
 
     /**
      * Sets up a popup tooltip that follows the mouse cursor over a slider.
      * Shows formatted value based on the provided formatter function.
-     * 
+     *
      * @param slider    The slider to attach the popup to
      * @param formatter Function to convert slider value to display string
      */
-    private void setupSliderPopup(Slider slider, Function<Double, String> formatter) {
+    private void setupSliderPopup(
+        Slider slider,
+        Function<Double, String> formatter
+    ) {
         Label label = new Label();
         Popup popup = new Popup();
         popup.getContent().add(label);
@@ -462,7 +556,9 @@ public class BottomContainer {
         });
 
         // Show popup on mouse enter
-        slider.setOnMouseEntered(event -> popup.show(slider, event.getScreenX() + 10, event.getScreenY() - 30));
+        slider.setOnMouseEntered(event ->
+            popup.show(slider, event.getScreenX() + 10, event.getScreenY() - 30)
+        );
         // Hide popup on mouse exit
         slider.setOnMouseExited(event -> popup.hide());
     }

@@ -121,21 +121,13 @@ public class CenterContainer {
     private Button viewToggleButton;
     private Label sortBehaviorHintLabel;
     private boolean isGridView = true;
+    private Consumer<Boolean> onViewModeChanged; // Callback to save view mode
     private static final String SORT_TITLE = "Title (A-Z)";
     private static final String SORT_ARTIST = "Artist (A-Z)";
     private static final String SORT_ALBUM = "Album (A-Z)";
 
     // Dependencies and callbacks
     private final MusicPlayerAccess musicPlayer; // Interface to music player model
-    private final Consumer<List<File>> onPlaylistLoadedCallback; // Callback when playlist is loaded
-    private final Consumer<File> onSongSelectedFromQueue; // Callback when song selected from queue
-    private final Runnable onPlayPauseToggle; // Callback for play/pause toggle
-    private final Runnable loadQueueViewCallback;
-
-    // UI update callbacks (set after initialization)
-    private Runnable updateVolumeSliderCallback;
-    private Runnable updateSongSliderCallback;
-    private Runnable updateSongLabelsCallback;
 
     // Background loading state (single worker + cancellable tasks)
     private final ExecutorService metadataExecutor =
@@ -152,27 +144,23 @@ public class CenterContainer {
     /**
      * Constructs a new CenterContainer with the required dependencies and callbacks.
      *
-     * @param musicPlayer               Interface to the music player model
-     * @param onPlaylistLoadedCallback  Callback when a playlist is loaded
-     * @param onSongSelectedFromQueue   Callback when a song is selected from queue
-     * @param onPlayPauseToggle         Callback for play/pause toggle from cover click
-     * @param loadQueueView             Callback to load queue view
+     * @param musicPlayer      Interface to the music player model
      */
-    public CenterContainer(
-        MusicPlayerAccess musicPlayer,
-        Consumer<List<File>> onPlaylistLoadedCallback,
-        Consumer<File> onSongSelectedFromQueue,
-        Runnable onPlayPauseToggle,
-        Runnable loadQueueView
-    ) {
+    public CenterContainer(MusicPlayerAccess musicPlayer) {
         this.musicPlayer = musicPlayer;
-        this.onPlaylistLoadedCallback = onPlaylistLoadedCallback;
-        this.onSongSelectedFromQueue = onSongSelectedFromQueue;
-        this.onPlayPauseToggle = onPlayPauseToggle;
-        this.loadQueueViewCallback = loadQueueView;
         this.lyricsService = new services.LyricsService();
     }
 
+    public void setOnViewModeChanged(Consumer<Boolean> callback) {
+        this.onViewModeChanged = callback;
+    }
+
+    public void setGridView(boolean isGrid) {
+        this.isGridView = isGrid;
+        if (this.viewToggleButton != null) {
+            this.viewToggleButton.setText(isGrid ? "List View" : "Grid View");
+        }
+    }
     /**
      * Initializes all components of the center container.
      * Must be called after construction before using the container.
@@ -218,23 +206,6 @@ public class CenterContainer {
 
     public ListView<QueueItem> getQueue() {
         return queue;
-    }
-
-    /**
-     * Sets the callbacks for UI updates when songs change.
-     *
-     * @param updateVolumeSlider Callback to update volume slider
-     * @param updateSongSlider   Callback to update song position slider
-     * @param updateSongLabels   Callback to update song info labels
-     */
-    public void setUpdateCallbacks(
-        Runnable updateVolumeSlider,
-        Runnable updateSongSlider,
-        Runnable updateSongLabels
-    ) {
-        this.updateVolumeSliderCallback = updateVolumeSlider;
-        this.updateSongSliderCallback = updateSongSlider;
-        this.updateSongLabelsCallback = updateSongLabels;
     }
 
     // ==================== Queue Management ====================
@@ -313,13 +284,9 @@ public class CenterContainer {
      * Loading is done in background thread for better performance.
      *
      * @param playlist        The list of songs to display
-     * @param setTitleCallback Callback to set window title when song is selected
-     * @param updateUiCallback Callback to update UI when song is selected
      */
     public void fillTheHomePage(
-        List<File> playlist,
-        Consumer<String> setTitleCallback,
-        Runnable updateUiCallback
+        List<File> playlist
     ) {
         if (playlist == null) return;
 
@@ -373,7 +340,7 @@ public class CenterContainer {
                 if (generation != this.homeLoadGeneration) {
                     return;
                 }
-                renderHomePageItems(items, setTitleCallback, updateUiCallback);
+                renderHomePageItems(items);
             });
         });
     }
@@ -559,13 +526,9 @@ public class CenterContainer {
      * Must be called after playlist is loaded.
      *
      * @param playlist         The current playlist
-     * @param setTitleCallback Callback to update window title
-     * @param playPauseButton  Reference to play/pause button for icon update
      */
     public void setupQueueSelectionHandler(
-        List<File> playlist,
-        Consumer<String> setTitleCallback,
-        Button playPauseButton
+        List<File> playlist
     ) {
         this.queue.setOnMouseClicked(event -> {
             int index = this.queue.getSelectionModel().getSelectedIndex();
@@ -583,26 +546,8 @@ public class CenterContainer {
                 this.musicPlayer.setPlaylistPosition(index);
                 this.musicPlayer.changeSong(playlist.get(index));
 
-                // Update UI
-                setTitleCallback.accept(
-                    playlist.get(index).getName() + " ~ Another MP3 Player"
-                );
-                if (
-                    updateVolumeSliderCallback != null
-                ) updateVolumeSliderCallback.run();
-                if (
-                    updateSongSliderCallback != null
-                ) updateSongSliderCallback.run();
-                if (
-                    updateSongLabelsCallback != null
-                ) updateSongLabelsCallback.run();
-
-                // Lyrics refresh for selected song
-                loadLyricsForCurrentSong();
-
-                // Start playback
+                // Start playback (play/pause icon and title handled by model events)
                 this.musicPlayer.start();
-                ImageCache.setButtonImage(playPauseButton, "new-pause.png");
             }
         });
     }
@@ -648,7 +593,6 @@ public class CenterContainer {
                 } else {
                     this.musicPlayer.start();
                 }
-                if (onPlayPauseToggle != null) onPlayPauseToggle.run();
             }
         });
     }
@@ -669,7 +613,7 @@ public class CenterContainer {
         this.homeControlsBar.setAlignment(Pos.CENTER_LEFT);
         this.homeControlsBar.getStyleClass().add("home-controls-bar");
 
-        this.viewToggleButton = new Button("List View");
+        this.viewToggleButton = new Button(this.isGridView ? "List View" : "Grid View");
         this.viewToggleButton.getStyleClass().add("home-view-toggle-button");
 
         this.sortComboBox = new javafx.scene.control.ComboBox<>();
@@ -713,9 +657,7 @@ public class CenterContainer {
     }
 
     private void renderHomePageItems(
-        List<HomeSongItem> sourceItems,
-        Consumer<String> setTitleCallback,
-        Runnable updateUiCallback
+        List<HomeSongItem> sourceItems
     ) {
         if (sourceItems == null) return;
 
@@ -725,32 +667,34 @@ public class CenterContainer {
         List<HomeSongItem> items = new ArrayList<>(sourceItems);
         items.sort(getCurrentComparator());
 
+        // When Home Page is sorted or toggled, we update the model's playlist order
         applySortedOrderToPlaybackPlaylist(items);
 
         for (int i = 0; i < items.size(); i++) {
             HomeSongItem item = items.get(i);
 
             Node rowOrCard = this.isGridView
-                ? createGridCard(item, i, setTitleCallback, updateUiCallback)
-                : createListRow(item, i, setTitleCallback, updateUiCallback);
+                ? createGridCard(item)
+                : createListRow(item);
 
             this.mainPage.getChildren().add(rowOrCard);
         }
 
         this.viewToggleButton.setOnAction(e -> {
             this.isGridView = !this.isGridView;
+            if (onViewModeChanged != null) {
+                onViewModeChanged.accept(this.isGridView);
+            }
             this.viewToggleButton.setText(
                 this.isGridView ? "List View" : "Grid View"
             );
             renderHomePageItems(
-                sourceItems,
-                setTitleCallback,
-                updateUiCallback
+                sourceItems
             );
         });
 
         this.sortComboBox.setOnAction(e ->
-            renderHomePageItems(sourceItems, setTitleCallback, updateUiCallback)
+            renderHomePageItems(sourceItems)
         );
     }
 
@@ -815,10 +759,7 @@ public class CenterContainer {
     }
 
     private Node createGridCard(
-        HomeSongItem item,
-        int playlistIndex,
-        Consumer<String> setTitleCallback,
-        Runnable updateUiCallback
+        HomeSongItem item
     ) {
         VBox vbox = new VBox();
         vbox.setAlignment(Pos.CENTER);
@@ -837,18 +778,13 @@ public class CenterContainer {
         vbox.getChildren().addAll(imageView, title, artist);
         attachSongClickHandler(
             vbox,
-            playlistIndex,
-            setTitleCallback,
-            updateUiCallback
+            item
         );
         return vbox;
     }
 
     private Node createListRow(
-        HomeSongItem item,
-        int playlistIndex,
-        Consumer<String> setTitleCallback,
-        Runnable updateUiCallback
+        HomeSongItem item
     ) {
         HBox row = new HBox();
         row.setAlignment(Pos.CENTER_LEFT);
@@ -873,47 +809,24 @@ public class CenterContainer {
 
         attachSongClickHandler(
             row,
-            playlistIndex,
-            setTitleCallback,
-            updateUiCallback
+            item
         );
         return row;
     }
 
     private void attachSongClickHandler(
         Node node,
-        int playlistIndex,
-        Consumer<String> setTitleCallback,
-        Runnable updateUiCallback
+        HomeSongItem item
     ) {
         node.setOnMouseClicked(event -> {
-            List<File> playlist = musicPlayer.getPlaylist();
-            if (
-                playlist == null ||
-                playlistIndex < 0 ||
-                playlistIndex >= playlist.size()
-            ) return;
-
             if (musicPlayer.isRunning()) {
                 musicPlayer.stop();
             }
 
-            musicPlayer.setPlaylistPosition(playlistIndex);
-            musicPlayer.changeSong(playlist.get(playlistIndex));
+            musicPlayer.jumpToSong(item.file);
+            musicPlayer.changeSong(item.file);
 
-            setTitleCallback.accept(
-                playlist.get(playlistIndex).getName() + " ~ Another MP3 Player"
-            );
-            if (updateUiCallback != null) {
-                updateUiCallback.run();
-            }
-
-            if (loadQueueViewCallback != null) {
-                loadQueueViewCallback.run();
-            }
-
-            updateQueueSelection();
-            loadLyricsForCurrentSong();
+            // Window title and UI updates are now handled by typed model events
             musicPlayer.start();
         });
     }

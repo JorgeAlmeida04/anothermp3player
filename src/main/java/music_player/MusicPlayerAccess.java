@@ -26,7 +26,13 @@ public interface MusicPlayerAccess {
     void changeSong(File file);
     void setPlaylist(List<File> playlist);
     void setPlaylistPosition(int position);
+    void jumpToSong(File file);
     int getPlaylistPosition();
     List<File> getPlaylist();
     QueueSongData getQueueData(File file);
+
+    boolean isShuffle();
+    void setShuffle(boolean shuffle);
+    boolean isRepeat();
+    void setRepeat(boolean repeat);
 }
