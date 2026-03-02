@@ -416,6 +416,9 @@ public class CenterContainer {
         // Create the wrapper StackPane first so we can bind children to it
         this.nowPlayingWrapper = new StackPane();
         this.nowPlayingWrapper.setAlignment(Pos.CENTER);
+        // Force the wrapper to fill the entire available space in the StackPane
+        this.nowPlayingWrapper.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        this.nowPlayingWrapper.setStyle("-fx-background-color: black;"); // Solid safety layer
 
         // Create the blurred background ImageView
         this.blurredBackground = new ImageView(DEFAULT_ALBUM_COVER);
@@ -456,10 +459,9 @@ public class CenterContainer {
         clip.heightProperty().bind(this.nowPlayingWrapper.heightProperty());
         this.nowPlayingWrapper.setClip(clip);
 
-        // Transfer initial state from coverQueueContainer to wrapper
+        // Initial state: hidden
         this.nowPlayingWrapper.setVisible(false);
         this.nowPlayingWrapper.setMouseTransparent(true);
-        this.nowPlayingWrapper.setManaged(false);
         this.nowPlayingWrapper.setTranslateY(10000);
 
         // The coverQueueContainer no longer needs to manage its own visibility/position
