@@ -15,7 +15,7 @@
 
 ##  Overview
 
-**AnotherMP3Player (AMP3P)** is yet another desktop music player built with the latest Java technologies. It combines a sleek, modern interface—inspired by the layout of YouTube Music with robust local library management (at least, I tried to) and advanced features like synchronized lyrics.
+**AnotherMP3Player (AMP3P)** is yet another desktop music player built with the latest Java technologies. It combines a sleek, modern interface inspired by the layout of YouTube Music with robust local library management (at least, I tried to) and advanced features like synchronized lyrics.
 
 Whether you're looking for a distraction-free listening experience or a way to manage a large local music collection, AMP3P is designed to be fast, responsive, and visually pleasing.
 
@@ -40,6 +40,7 @@ Whether you're looking for a distraction-free listening experience or a way to m
 ### Prerequisites
 - **JDK 25** or higher (Required for latest features and performance)
 - **Maven** (For building and dependency management)
+- For now it only works on Windows (future releases will add support to other platforms)
 
 ### Installation & Running
 
