@@ -134,7 +134,26 @@
 }
 
 .bottom-layout {
-    -fx-background-color: #212121;
+    -fx-background-color: #121212;
+    -fx-border-color: rgba(255, 255, 255, 0.1) transparent transparent transparent;
+    -fx-border-width: 1px;
+}
+
+.mini-cover {
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.4), 10, 0, 0, 0);
+}
+
+.bottom-title-label {
+    -fx-text-fill: white;
+    -fx-font-family: "Inter", "Segoe UI", sans-serif;
+    -fx-font-weight: 700;
+    -fx-font-size: 14px;
+}
+
+.bottom-artist-label {
+    -fx-text-fill: #b3b3b3;
+    -fx-font-family: "Inter", "Segoe UI", sans-serif;
+    -fx-font-size: 12px;
 }
 
 .button {
@@ -144,6 +163,46 @@
 .button:hover {
     -fx-background-color: rgba(255, 255, 255, 0.1);
     -fx-background-radius: 100px;
+}
+
+/* --- Thinner, Modern Progress Bar --- */
+.song-slider .thumb {
+    -fx-background-color: #ffffff;
+    -fx-pref-width: 10px;
+    -fx-pref-height: 10px;
+    -fx-opacity: 0; /* Hidden by default */
+}
+
+.bottom-layout:hover .song-slider .thumb {
+    -fx-opacity: 1; /* Show on hover */
+}
+
+.song-bar {
+    -fx-pref-height: 3px;
+    -fx-min-height: 3px;
+    -fx-max-height: 3px;
+}
+
+.song-bar .track {
+    -fx-background-color: #4d4d4d;
+}
+
+.song-bar .bar {
+    -fx-background-color: #1DB954; /* Spotify Green accent */
+}
+
+.volume-bar {
+    -fx-pref-height: 4px;
+    -fx-min-height: 4px;
+}
+
+.volume-bar .bar {
+    -fx-background-color: #ffffff;
+}
+
+.volume-slider .thumb {
+    -fx-pref-width: 12px;
+    -fx-pref-height: 12px;
 }
 
 .menu-bar {
