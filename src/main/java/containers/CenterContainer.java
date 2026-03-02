@@ -39,6 +39,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
+import javafx.scene.control.ComboBox;
+import javafx.animation.Interpolator;
 import model.LyricsTrack;
 import music_player.MusicPlayerAccess;
 import queue.QueueCell;
@@ -117,7 +119,7 @@ public class CenterContainer {
 
     // Home page controls/state
     private HBox homeControlsBar;
-    private javafx.scene.control.ComboBox<String> sortComboBox;
+    private ComboBox<String> sortComboBox;
     private Button viewToggleButton;
     private Label sortBehaviorHintLabel;
     private boolean isGridView = true;
@@ -236,6 +238,8 @@ public class CenterContainer {
         this.queue.getItems().setAll(placeholders);
 
         // Build full metadata list in background, then commit once
+        if (this.metadataExecutor.isShutdown()) return;
+
         this.queueMetadataFuture = this.metadataExecutor.submit(() -> {
             List<QueueItem> built = new ArrayList<>(playlist.size());
             for (File file : playlist) {
@@ -301,6 +305,8 @@ public class CenterContainer {
         this.mainPage.setPadding(new Insets(20));
 
         // Build full metadata list in background, then render once on UI thread
+        if (this.metadataExecutor.isShutdown()) return;
+
         this.homeMetadataFuture = this.metadataExecutor.submit(() -> {
             List<HomeSongItem> items = new ArrayList<>(playlist.size());
 
@@ -618,7 +624,7 @@ public class CenterContainer {
         this.viewToggleButton = new Button(this.isGridView ? "List View" : "Grid View");
         this.viewToggleButton.getStyleClass().add("home-view-toggle-button");
 
-        this.sortComboBox = new javafx.scene.control.ComboBox<>();
+        this.sortComboBox = new ComboBox<>();
         this.sortComboBox.getItems().addAll(
             SORT_TITLE,
             SORT_ARTIST,
@@ -1202,7 +1208,7 @@ public class CenterContainer {
                 new KeyValue(
                     this.lyricsScrollPane.vvalueProperty(),
                     targetV,
-                    javafx.animation.Interpolator.EASE_BOTH
+                    Interpolator.EASE_BOTH
                 )
             )
         );

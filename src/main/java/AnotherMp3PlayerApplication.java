@@ -1,4 +1,3 @@
-import javax.swing.*;
 import javafx.application.Application;
 
 public class AnotherMp3PlayerApplication {
