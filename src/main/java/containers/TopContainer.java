@@ -28,9 +28,7 @@ public class TopContainer {
     private Menu playlistMenu;      // Menu for playlist operations
 
     // Menu items
-    private MenuItem loadSong;      // Opens file dialog for single song
-    private MenuItem loadPlaylist;  // Opens file dialog for multiple songs
-    private MenuItem createPlaylist; // Placeholder for playlist creation
+    private MenuItem loadSongs;  // Opens file dialog for multiple songs
 
     // Dependencies and callbacks
     private final MusicPlayerAccess musicPlayer;           // Interface to music player model
@@ -99,38 +97,14 @@ public class TopContainer {
         // === Songs Menu ===
         songsMenu = new Menu("Songs");
 
-        // Load Song - opens single file selection dialog
-        loadSong = new MenuItem("Load Song");
-        loadSong.setOnAction(e -> {
-            File songFile = fileSelection();
-            if (songFile != null) {
-                if (onSongLoaded != null) {
-                    onSongLoaded.accept(songFile);
-                }
-                this.musicPlayer.setPlaylistPosition(0);
-                this.musicPlayer.start();
-            }
-        });
-
-        songsMenu.getItems().add(loadSong);
-
-        // === Playlist Menu ===
-        playlistMenu = new Menu("Playlist");
-
-        // Create Playlist - placeholder for future functionality
-        createPlaylist = new MenuItem("Create Playlist");
-        createPlaylist.setOnAction(e -> {
-            System.out.println("Creating playlist");
-        });
-
-        // Load Playlist - opens multiple file selection dialog
-        loadPlaylist = new MenuItem("Load Playlist");
-        loadPlaylist.setOnAction(e -> {
-            List<File> playlist = multipleFileSelection();
-            if (playlist != null && !playlist.isEmpty()) {
-                // Notify that playlist was loaded
+        // Load Songs - opens multiple file selection dialog
+        loadSongs = new MenuItem("Load Songs");
+        loadSongs.setOnAction(e -> {
+            List<File> songs = multipleFileSelection();
+            if (songs != null && !songs.isEmpty()) {
+                // Notify that songs were loaded
                 if (onPlaylistLoaded != null) {
-                    onPlaylistLoaded.accept(playlist);
+                    onPlaylistLoaded.accept(songs);
                 }
                 // Start playback
                 if (loadPlaylistSongCallback != null) {
@@ -143,10 +117,10 @@ public class TopContainer {
             }
         });
 
-        playlistMenu.getItems().addAll(createPlaylist, loadPlaylist);
+        songsMenu.getItems().addAll(loadSongs);
 
         // Add menus to menu bar
-        menuBar.getMenus().addAll(songsMenu, playlistMenu);
+        menuBar.getMenus().addAll(songsMenu);
     }
 
     // ==================== Private Helper Methods ====================
