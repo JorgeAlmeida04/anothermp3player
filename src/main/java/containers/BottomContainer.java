@@ -221,7 +221,7 @@ public class BottomContainer {
 
     public void updateShuffleButtonStyle() {
         if (this.musicPlayer.isShuffle()) {
-            this.shuffleButton.setStyle("-fx-background-color: rgba(29, 185, 84, 0.15); -fx-background-radius: 100px; -fx-opacity: 1.0;");
+            this.shuffleButton.setStyle("-fx-background-color: rgba(80, 127, 247, 0.4); -fx-background-radius: 100px; -fx-opacity: 1.0;");
         } else {
             this.shuffleButton.setStyle("-fx-background-color: transparent; -fx-opacity: 0.6;");
         }
@@ -229,7 +229,7 @@ public class BottomContainer {
 
     public void updateRepeatButtonStyle() {
         if (this.musicPlayer.isRepeat()) {
-            this.repeatButton.setStyle("-fx-background-color: rgba(29, 185, 84, 0.15); -fx-background-radius: 100px; -fx-opacity: 1.0;");
+            this.repeatButton.setStyle("-fx-background-color: rgba(80, 127, 247, 0.4); -fx-background-radius: 100px; -fx-opacity: 1.0;");
         } else {
             this.repeatButton.setStyle("-fx-background-color: transparent; -fx-opacity: 0.6;");
         }

@@ -138,6 +138,23 @@
 					</execution>
 				</executions>
 			</plugin>
+
+			<plugin>
+				<groupId>org.panteleyev</groupId>
+				<artifactId>jpackage-maven-plugin</artifactId>
+				<version>1.7.0</version>
+				<configuration>
+					<name>AnotherMP3Player</name>
+					<appVersion>1.0.0</appVersion>
+					<vendor>jojotv</vendor>
+					<input>target/</input>
+					<mainJar>Another-MP3-Player-0.0.1-SNAPSHOT.jar</mainJar>
+					<mainClass>AnotherMp3PlayerApplication</mainClass>
+					<destination>target/installer</destination>
+					<type>APP_IMAGE</type>
+					<icon>src/main/resources/assets/amp3p.ico</icon>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 </project>

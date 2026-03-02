@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>jojotv</groupId>
+  <artifactId>Another-MP3-Player</artifactId>
+  <name>Another-MP3-Player</name>
+  <version>0.0.1-SNAPSHOT</version>
+  <developers>
+    <developer />
+  </developers>
+  <licenses>
+    <license />
+  </licenses>
+  <scm />
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <source>${java.version}</source>
+          <target>${java.version}</target>
+          <release>${java.version}</release>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-maven-plugin</artifactId>
+        <version>0.0.8</version>
+        <configuration>
+          <mainClass>AnotherMp3PlayerApplication</mainClass>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+                <transformer>
+                  <mainClass>AnotherMp3PlayerApplication</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.panteleyev</groupId>
+        <artifactId>jpackage-maven-plugin</artifactId>
+        <version>1.7.0</version>
+        <configuration>
+          <name>AnotherMP3Player</name>
+          <appVersion>1.0.0</appVersion>
+          <vendor>jojotv</vendor>
+          <input>target/</input>
+          <mainJar>Another-MP3-Player-0.0.1-SNAPSHOT.jar</mainJar>
+          <mainClass>AnotherMp3PlayerApplication</mainClass>
+          <destination>target/installer</destination>
+          <type>APP_IMAGE</type>
+          <icon>src/main/resources/assets/amp3p.ico</icon>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+  <properties>
+    <java.version>25</java.version>
+  </properties>
+</project>
