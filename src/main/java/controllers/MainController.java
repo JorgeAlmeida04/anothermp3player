@@ -27,6 +27,9 @@ public class MainController {
     private BottomContainer bottomContainer;
     private CenterContainer centerContainer;
     private TopContainer topContainer;
+    
+    // Debounced window bounds saver to reduce I/O during resize
+    private javafx.animation.PauseTransition windowBoundsSaveDebouncer;
 
     public MainController(MusicPlayerModel model) {
         this.model = model;
@@ -114,10 +117,14 @@ public class MainController {
         window.setWidth(w);
         window.setHeight(h);
 
-        window.xProperty().addListener((o, old, val) -> saveWindowBounds());
-        window.yProperty().addListener((o, old, val) -> saveWindowBounds());
-        window.widthProperty().addListener((o, old, val) -> saveWindowBounds());
-        window.heightProperty().addListener((o, old, val) -> saveWindowBounds());
+        // Initialize debouncer for window bounds saves (reduces I/O during resize)
+        windowBoundsSaveDebouncer = new javafx.animation.PauseTransition(javafx.util.Duration.millis(500));
+        windowBoundsSaveDebouncer.setOnFinished(e -> saveWindowBounds());
+        
+        window.xProperty().addListener((o, old, val) -> debouncedSaveWindowBounds());
+        window.yProperty().addListener((o, old, val) -> debouncedSaveWindowBounds());
+        window.widthProperty().addListener((o, old, val) -> debouncedSaveWindowBounds());
+        window.heightProperty().addListener((o, old, val) -> debouncedSaveWindowBounds());
 
         // Model
         model.setShuffle(settingsService.isShuffle(false));
@@ -128,6 +135,13 @@ public class MainController {
         bottomContainer.updateShuffleButtonStyle();
         bottomContainer.updateRepeatButtonStyle();
         bottomContainer.updateVolumeSlider();
+    }
+    
+    private void debouncedSaveWindowBounds() {
+        // Restart the debouncer timer - saves will only happen after 500ms of no changes
+        if (windowBoundsSaveDebouncer != null) {
+            windowBoundsSaveDebouncer.playFromStart();
+        }
     }
 
     private void saveWindowBounds() {

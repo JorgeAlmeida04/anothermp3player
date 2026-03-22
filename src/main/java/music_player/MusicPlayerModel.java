@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Optional;
 import javax.sound.sampled.*;
 
 import javazoom.jl.decoder.Bitstream;
@@ -202,6 +203,62 @@ public class MusicPlayerModel implements MusicPlayerAccess {
 
     @Override
     public QueueSongData getQueueData(File file) {
+        // Try to get metadata from database first (fast path)
+        QueueSongData dbData = getQueueDataFromDatabase(file);
+        if (dbData != null) {
+            // Still need to get album art from file (not stored in DB)
+            byte[] img = extractAlbumImage(file);
+            return new QueueSongData(dbData.title, dbData.artist, dbData.album, dbData.duration, img);
+        }
+        
+        // Fall back to parsing MP3 file (slow path)
+        return getQueueDataFromFile(file);
+    }
+    
+    /**
+     * Attempts to retrieve metadata from the database.
+     * Returns null if not found or on error.
+     */
+    private QueueSongData getQueueDataFromDatabase(File file) {
+        try {
+            services.SongService songService = new services.SongService();
+            Optional<model.Song> opt = songService.getSongByPath(file.getAbsolutePath());
+            if (opt.isPresent()) {
+                model.Song song = opt.get();
+                String title = song.getTitle() != null && !song.getTitle().isBlank() 
+                    ? song.getTitle() : file.getName();
+                String artist = song.getArtist() != null && !song.getArtist().isBlank() 
+                    ? song.getArtist() : "Unknown Artist";
+                String album = song.getAlbum() != null && !song.getAlbum().isBlank() 
+                    ? song.getAlbum() : "Unknown Album";
+                long durationMs = song.getDurationMs();
+                String duration = String.format("%d:%02d", durationMs / 60000, (durationMs % 60000) / 1000);
+                return new QueueSongData(title, artist, album, duration, null);
+            }
+        } catch (Exception e) {
+            // Silently fall back to file parsing
+        }
+        return null;
+    }
+    
+    /**
+     * Extracts only the album image from the MP3 file.
+     * This is faster than parsing all metadata when DB has the rest.
+     */
+    private byte[] extractAlbumImage(File file) {
+        try {
+            Mp3File mp3 = new Mp3File(file);
+            if (mp3.hasId3v2Tag()) {
+                return mp3.getId3v2Tag().getAlbumImage();
+            }
+        } catch (Exception e) {}
+        return null;
+    }
+    
+    /**
+     * Full metadata extraction from MP3 file (fallback when DB doesn't have the song).
+     */
+    private QueueSongData getQueueDataFromFile(File file) {
         String title = file.getName();
         String artist = "Unknown Artist";
         String album = "Unknown Album";

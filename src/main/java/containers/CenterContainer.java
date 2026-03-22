@@ -102,6 +102,8 @@ public class CenterContainer {
     private final List<Label> syncedLyricsLineLabels = new ArrayList<>();
     private int currentHighlightedLyricsIndex = -1;
     private Timeline lyricsScrollAnimation;
+    // Lyrics cache: file path -> LyricsTrack (avoids re-parsing files)
+    private final java.util.Map<String, java.util.Optional<model.LyricsTrack>> lyricsCache = new java.util.HashMap<>();
     private static final double LYRICS_TARGET_VIEWPORT_RATIO = 0.5;
     private static final double LYRICS_SCROLL_ANIMATION_MS = 260;
     private static final double LYRICS_BASE_FONT_SIZE_PX = 14;
@@ -250,13 +252,7 @@ public class CenterContainer {
                 QueueSongData data = musicPlayer.getQueueData(file);
                 Image img = null;
                 if (data.imageData != null) {
-                    img = new Image(
-                        new ByteArrayInputStream(data.imageData),
-                        40,
-                        40,
-                        true,
-                        true
-                    );
+                    img = ImageCache.getAlbumArtImage(data.imageData, 40, 40, true, true);
                 }
 
                 built.add(
@@ -319,13 +315,10 @@ public class CenterContainer {
 
                 Image img;
                 if (data.imageData != null) {
-                    img = new Image(
-                        new ByteArrayInputStream(data.imageData),
-                        100,
-                        100,
-                        true,
-                        true
-                    );
+                    img = ImageCache.getAlbumArtImage(data.imageData, 100, 100, true, true);
+                    if (img == null) {
+                        img = DEFAULT_ALBUM_COVER;
+                    }
                 } else {
                     img = DEFAULT_ALBUM_COVER;
                 }
@@ -381,13 +374,10 @@ public class CenterContainer {
         byte[] albumImage = musicPlayer.getSongAlbumImage();
         Image coverImage;
         if (albumImage != null) {
-            coverImage = new Image(
-                new ByteArrayInputStream(albumImage),
-                400,
-                400,
-                true,
-                true
-            );
+            coverImage = ImageCache.getAlbumArtImage(albumImage, 400, 400, true, true);
+            if (coverImage == null) {
+                coverImage = DEFAULT_ALBUM_COVER;
+            }
         } else {
             coverImage = DEFAULT_ALBUM_COVER;
         }
@@ -1073,15 +1063,18 @@ public class CenterContainer {
         }
 
         File currentSong = playlist.get(pos);
-        Optional<LyricsTrack> maybe = this.lyricsService.resolveLyrics(
-            currentSong
-        );
+        
+        // Try cache first, then resolve from file
+        Optional<LyricsTrack> maybe = getLyricsFromCacheOrResolve(currentSong);
         if (maybe.isEmpty()) {
             this.lyricsContent.getChildren().add(this.lyricsEmptyLabel);
             return;
         }
 
         this.currentLyricsTrack = maybe.get();
+        
+        // Preload lyrics for upcoming songs in background
+        preloadUpcomingLyrics(playlist, pos, 3); // Preload next 3 songs
 
         if (!this.currentLyricsTrack.isSynced()) {
             this.lyricsUnsyncedLabel.setStyle(
@@ -1110,6 +1103,58 @@ public class CenterContainer {
         }
 
         updateLyricsHighlight();
+    }
+    
+    /**
+     * Gets lyrics from cache, or resolves from file and caches result.
+     */
+    private Optional<LyricsTrack> getLyricsFromCacheOrResolve(File songFile) {
+        String path = songFile.getAbsolutePath();
+        
+        // Check cache first
+        if (lyricsCache.containsKey(path)) {
+            return lyricsCache.get(path);
+        }
+        
+        // Resolve and cache
+        Optional<LyricsTrack> result = this.lyricsService.resolveLyrics(songFile);
+        lyricsCache.put(path, result);
+        return result;
+    }
+    
+    /**
+     * Preloads lyrics for upcoming songs in the playlist.
+     * This runs in a background thread to avoid blocking the UI.
+     */
+    private void preloadUpcomingLyrics(List<File> playlist, int currentPos, int count) {
+        if (playlist == null || playlist.isEmpty()) return;
+        
+        // Submit to the existing metadata executor
+        if (this.metadataExecutor.isShutdown()) return;
+        
+        this.metadataExecutor.submit(() -> {
+            for (int i = 1; i <= count; i++) {
+                int nextPos = currentPos + i;
+                if (nextPos >= playlist.size()) break;
+                
+                File nextSong = playlist.get(nextPos);
+                String path = nextSong.getAbsolutePath();
+                
+                // Skip if already cached
+                if (!lyricsCache.containsKey(path)) {
+                    // Resolve and cache (ignore result, just populate cache)
+                    Optional<LyricsTrack> result = this.lyricsService.resolveLyrics(nextSong);
+                    lyricsCache.put(path, result);
+                }
+            }
+        });
+    }
+    
+    /**
+     * Clears the lyrics cache. Call when playlist changes significantly.
+     */
+    public void clearLyricsCache() {
+        lyricsCache.clear();
     }
 
     public void updateLyricsHighlight() {

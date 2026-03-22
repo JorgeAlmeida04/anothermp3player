@@ -180,7 +180,8 @@ public class BottomContainer {
         songArtist.setText(artist != null ? artist : "Unknown Artist");
 
         if (imgData != null) {
-            miniCover.setImage(new Image(new java.io.ByteArrayInputStream(imgData), 100, 100, true, true));
+            Image cachedImage = util.ImageCache.getAlbumArtImage(imgData, 100, 100, true, true);
+            miniCover.setImage(cachedImage != null ? cachedImage : DEFAULT_ALBUM_COVER);
         } else {
             miniCover.setImage(DEFAULT_ALBUM_COVER);
         }
@@ -312,12 +313,24 @@ public class BottomContainer {
 
         this.songSlider = new Slider(0, 100, 0);
         this.songSlider.getStyleClass().add("song-slider");
+        // Make slider track thicker for easier selection
+        this.songSlider.setPrefHeight(12);
 
         setupSliderPopup(this.songSlider, hoverValue -> {
             double timeUnit = 44231.5636364;
             int minutes = (int) (hoverValue / timeUnit) / 60;
             int seconds = (int) (hoverValue / timeUnit) % 60;
             return String.format("%d:%02d", minutes, seconds);
+        });
+
+        // Handle clicking on the slider track to seek
+        this.songSlider.setOnMouseClicked(e -> {
+            if (this.musicPlayer.hasClip()) {
+                double percentage = Math.max(0, Math.min(1, e.getX() / this.songSlider.getWidth()));
+                double newValue = this.songSlider.getMin() + (percentage * (this.songSlider.getMax() - this.songSlider.getMin()));
+                this.songSlider.setValue(newValue);
+                this.musicPlayer.setSongPosition((int) newValue);
+            }
         });
 
         this.songSlider.setOnMousePressed(e -> isDragging = true);
@@ -331,7 +344,9 @@ public class BottomContainer {
         });
 
         this.songSliderBar = new StackPane(songBar, songSlider);
+        this.songSliderBar.setPrefHeight(12); // Make container match slider height
         this.songBar.prefWidthProperty().bind(this.songSliderBar.widthProperty());
+        this.songBar.prefHeightProperty().bind(this.songSliderBar.heightProperty());
     }
 
     private void setupSliderPopup(Slider slider, Function<Double, String> formatter) {

@@ -28,7 +28,7 @@ import util.ImageCache;
  */
 public class MP3PlayerGUIJavaFX extends Application {
 
-    private static final double DEFAULT_UPDATE_DURATION = 0.1;
+    private static final double DEFAULT_UPDATE_DURATION = 0.25; // Reduced from 0.1 to lower CPU usage (4Hz instead of 10Hz)
 
     private MusicPlayerModel musicPlayer;
     private MainController controller;
@@ -73,7 +73,12 @@ public class MP3PlayerGUIJavaFX extends Application {
         window.setScene(scene);
         window.show();
 
-        CustomCaption.setImmersiveDarkMode(this.window, true);
+        String os = System.getProperty("os.name").toLowerCase();
+
+        if(os.contains("win")){
+            CustomCaption.setImmersiveDarkMode(this.window, true);
+        }
+
         initNowPlayingView();
     }
 
