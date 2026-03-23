@@ -40,7 +40,7 @@ Whether you're looking for a distraction-free listening experience or a way to m
 ### Prerequisites
 - **JDK 25** or higher (Required for latest features and performance)
 - **Maven** (For building and dependency management)
-- For now it only works on Windows (future releases will add support to other platforms)
+- For now it was only tested on Windows and Linux (future releases will add support to other platforms)
 
 ### Installation & Running
 
@@ -57,7 +57,7 @@ Whether you're looking for a distraction-free listening experience or a way to m
 
 ---
 
-## 📖 How to Use
+## How to Use
 
 1. **Adding Music**: Click the "Load" button or the "Songs" > "Load Songs" menu to select your MP3 files. AMP3P will automatically scan them and add them to your persistent library.
 2. **Lyrics**: To see lyrics, ensure a `.lrc` or `.txt` file exists in the same directory as the song (e.g., `Song.mp3` and `Song.lrc`).
@@ -65,7 +65,7 @@ Whether you're looking for a distraction-free listening experience or a way to m
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
 
@@ -77,7 +77,7 @@ Contributions are what make the open-source community such an amazing place to l
 
 ---
 
-## ⚖️ License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
